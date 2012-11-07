@@ -1,13 +1,9 @@
-package commandline
+package gadgets
 
 import (
 	"github.com/chrigrah/nextplz/util"
 	"github.com/nsf/termbox-go"
 )
-
-type CommandReceiver interface {
-	Command(string)
-}
 
 type CommandLine struct {
 	X, Y int
@@ -15,6 +11,17 @@ type CommandLine struct {
 	FG, BG termbox.Attribute
 	Cmd []byte
 	Prefix string
+	FillRune rune
+
+	FinalizeCallback func(string) error
+}
+
+func (cl *CommandLine) SetFinalizeCallback(callback func(string) error) {
+	cl.FinalizeCallback = callback
+}
+
+func (cl *CommandLine) Finalize() error {
+	return cl.FinalizeCallback(string(cl.Cmd))
 }
 
 func (cl *CommandLine) Draw() {
@@ -22,14 +29,14 @@ func (cl *CommandLine) Draw() {
 	cmd_length := util.Min(len(cl.Cmd), max_length)
 
 	var cmd string = string(cl.Cmd[:cmd_length])
-	util.WriteString(cl.X, cl.Y, cl.Length, cl.Length, cl.FG, cl.BG, cl.Prefix)
-	util.WriteString(cl.X+len(cl.Prefix), cl.Y, cl.Length, cl.Length, cl.FG, cl.BG, cmd)
-	termbox.SetCursor(len(cl.Prefix) + cmd_length, cl.Y)
+	util.WriteString(cl.X, cl.Y, cl.Length, cl.FG, cl.BG, cl.Prefix)
+	util.WriteString_FillWithChar(cl.X+len(cl.Prefix), cl.Y, cl.Length, cl.FG, cl.BG, cmd, cl.FillRune)
+	termbox.SetCursor(cl.X + len(cl.Prefix) + cmd_length, cl.Y)
 }
 
 func (cl *CommandLine) append(char byte) {
 	at := len(cl.Cmd)
-	if cap(cl.Cmd) < at + 1 {	// Reallocate buffer with doubled size
+	if cap(cl.Cmd) < at + 1 {	// Reallocate buffer with doubled capacity
 		tmpArr := make([]byte, at + 1, at*2)
 		copy(tmpArr, cl.Cmd)
 		cl.Cmd = tmpArr

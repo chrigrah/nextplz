@@ -4,27 +4,38 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-func FillLineTo(startx, line int, stopx int, color termbox.Attribute) (err error) {
-	for i := startx; i < stopx; i++ {
-		termbox.SetCell(i, line, ' ', color, color)
-	}
-	return
+func WriteString(x, y int, width int, fg, bg termbox.Attribute, str string) bool {
+	return WriteString_FillWithChar(x, y, width, fg, bg, str, ' ')
 }
 
-func WriteString(x, y int, box_width, maxX int, fg, bg termbox.Attribute, str string) bool {
-	var effective_box_width int = Min(box_width, maxX-x)
-
-	if len(str) > effective_box_width {
-		str = str[:effective_box_width]
+func WriteString_FillWithChar(x, y int, width int, fg, bg termbox.Attribute, str string, fill rune) bool {
+	if len(str) > width {
+		str = str[:width]
 	}
 
 	for at, char := range str {
 		termbox.SetCell(x + at, y, rune(char), fg, bg)
 	}
 
-	FillLineTo(x+len(str), y, x + effective_box_width, bg)
+	RepeatCharX(x+len(str), x + width, y, fill, fg, bg)
 
 	return true
+}
+
+func FillLineTo(startx, line int, stopx int, color termbox.Attribute) {
+	RepeatCharX(startx, stopx, line, ' ', color, color)
+}
+
+func RepeatCharX(startx, stopx, y int, c rune, fg, bg termbox.Attribute) {
+	for x := startx; x < stopx; x++ {
+		termbox.SetCell(x, y, c, fg, bg)
+	}
+}
+
+func RepeatCharY(starty, stopy, x int, c rune, fg, bg termbox.Attribute) {
+	for y := starty; y < stopy; y++ {
+		termbox.SetCell(x, y, c, fg, bg)
+	}
 }
 
 func Max(x, y int) (r int) {
