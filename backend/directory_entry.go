@@ -3,12 +3,16 @@ package backend
 import (
 	"os"
 	"strings"
+	"regexp"
 	"path/filepath"
 	"container/list"
 )
 
 var (
 	VideoExtensions []string
+	CoddleRars bool = true
+	FilterSubs bool = true
+	FilterSamples bool = true
 )
 
 type FileEntry struct {
@@ -61,7 +65,7 @@ func (file_entry *FileEntry) walk_func() filepath.WalkFunc {
 			AbsPath: dir,
 			IsDir: fi.IsDir(),
 			IsAccessible: err == nil,
-			IsVideo: is_video(dir),
+			IsVideo: IsVideo(filepath.Base(dir)),
 			Parent: fe,
 		}
 		new_file.ElementInParent = fe.Contents.PushBack(&new_file)
@@ -120,11 +124,40 @@ func is_accessible(path string) bool {
 	return true
 }
 
-func is_video(path string) bool {
+var sample_regexp *regexp.Regexp
+var rar_part_regexp *regexp.Regexp
+var rar_sub_regexp *regexp.Regexp
+
+func IsVideo(path string) bool {
+	if FilterSamples && sample_regexp == nil {
+		var err error
+		sample_regexp, err = regexp.Compile("(?:^|[.-])(?i)(?:sample)[.-]")
+		if err != nil { panic(err); }
+	}
 	for _, ext := range VideoExtensions {
-		if strings.HasSuffix(path, ext) {
+		if strings.HasSuffix(path, ext) && (!FilterSamples || !sample_regexp.MatchString(path)) {
 			return true
 		}
+	}
+	if CoddleRars && strings.HasSuffix(path, ".rar") {
+		if rar_part_regexp == nil {
+			var err error
+			rar_part_regexp, err = regexp.Compile("\\.part([0-9]{2})\\.rar$")
+			if err != nil { panic(err); }
+		}
+		if FilterSubs && rar_sub_regexp == nil {
+			var err error
+			rar_sub_regexp, err = regexp.Compile("(?:^|[.-])subs[.-]")
+			if err != nil { panic(err); }
+		}
+		if matches := rar_part_regexp.FindStringSubmatch(path); len(matches) == 2 && matches[1] != "01" {
+			return false
+		}
+		if FilterSubs && rar_sub_regexp.MatchString(path) {
+			return false
+		}
+
+		return true
 	}
 	return false
 }

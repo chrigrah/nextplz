@@ -9,6 +9,9 @@ func WriteString(x, y int, width int, fg, bg termbox.Attribute, str string) bool
 }
 
 func WriteString_FillWithChar(x, y int, width int, fg, bg termbox.Attribute, str string, fill rune) bool {
+	if width <= 0 {
+		return false
+	}
 	if len(str) > width {
 		str = str[:width]
 	}

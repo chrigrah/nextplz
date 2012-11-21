@@ -1,4 +1,4 @@
-package media_commands
+package media_player
 
 import (
 	"fmt"
@@ -18,6 +18,8 @@ type MediaPlayerInitInfo struct {
 	Executable string
 	Arguments string
 }
+
+var GlobalMediaPlayer MediaPlayer
 
 func InitMediaPlayerFlagParser() *MediaPlayerInitInfo{
 	var info MediaPlayerInitInfo

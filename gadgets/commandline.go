@@ -12,26 +12,18 @@ type CommandLine struct {
 	Cmd []byte
 	Prefix string
 	FillRune rune
-
-	FinalizeCallback func(string) error
 }
 
-func (cl *CommandLine) SetFinalizeCallback(callback func(string) error) {
-	cl.FinalizeCallback = callback
-}
-
-func (cl *CommandLine) Finalize() error {
-	return cl.FinalizeCallback(string(cl.Cmd))
-}
-
-func (cl *CommandLine) Draw() {
+func (cl *CommandLine) Draw(draw_cursor bool) {
 	max_length := cl.Length - len(cl.Prefix) - 1
 	cmd_length := util.Min(len(cl.Cmd), max_length)
 
 	var cmd string = string(cl.Cmd[:cmd_length])
 	util.WriteString(cl.X, cl.Y, cl.Length, cl.FG, cl.BG, cl.Prefix)
 	util.WriteString_FillWithChar(cl.X+len(cl.Prefix), cl.Y, cl.Length, cl.FG, cl.BG, cmd, cl.FillRune)
-	termbox.SetCursor(cl.X + len(cl.Prefix) + cmd_length, cl.Y)
+	if draw_cursor {
+		termbox.SetCursor(cl.X + len(cl.Prefix) + cmd_length, cl.Y)
+	}
 }
 
 func (cl *CommandLine) append(char byte) {
@@ -46,23 +38,18 @@ func (cl *CommandLine) append(char byte) {
 	cl.Cmd[at] = char
 }
 
-func (cl *CommandLine) Input(event termbox.Event) (cmdChanged bool) {
+func (cl *CommandLine) Input(event termbox.Event) error {
 	if event.Type == termbox.EventKey && event.Ch != 0 {
 		cl.append(byte(event.Ch))
-		cmdChanged = true
 	} else {
 		switch event.Key {
 		case termbox.KeyBackspace:
 			if len(cl.Cmd) > 0 {
 				cl.Cmd = cl.Cmd[:len(cl.Cmd)-1]
 			}
-			cmdChanged = true
 		case termbox.KeySpace:
 			cl.append(' ')
-			cmdChanged = true
-		default:
-			cmdChanged = false
 		}
 	}
-	return
+	return nil
 }

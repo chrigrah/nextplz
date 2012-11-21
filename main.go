@@ -1,12 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"flag"
 	"strings"
 	MP "github.com/chrigrah/nextplz/media_player"
 	"github.com/chrigrah/nextplz/gadgets"
-	"github.com/chrigrah/nextplz/util"
 	"github.com/chrigrah/nextplz/backend"
 	"github.com/nsf/termbox-go"
 	"container/list"
@@ -14,31 +12,27 @@ import (
 
 var (
 	width, height int
-	mp MP.MediaPlayer
-	ls *gadgets.Listing
-	tb *gadgets.TextBox
+	dl *gadgets.DirectoryListing
 	sl gadgets.StatusLine
-	cl gadgets.CommandLine
-	sb util.ScrollingBoxes
 	at_state int
-
 	events chan termbox.Event = make(chan termbox.Event, 10)
+	update_chan chan int = make(chan int, 10)
 	focus_stack *list.List
 
 	media_extensions string
 )
 
 func main() {
-	err := termbox.Init()
+	var err error
+	err = termbox.Init()
 	if err != nil {
 		panic(err)
 	}
 	defer termbox.Close()
 
 	initialize_globals()
-	defer mp.Disconnect()
+	defer MP.GlobalMediaPlayer.Disconnect()
 
-	go sb.StartTicker()
 	go feed_events()
 
 	update()
@@ -50,87 +44,50 @@ func main() {
 		}
 		switch event.Key {
 		case termbox.KeyEsc:
-			if tb != nil {
+			handled := focus_stack.Front().Value.(gadgets.InputReceiver).HandleEscape()
+			if !handled {
+				err = focus_stack.Front().Value.(gadgets.InputReceiver).Deactivate()
 				focus_stack.Remove(focus_stack.Front())
-				tb = nil
-				update()
-			} else if len(cl.Cmd) > 0 {
-				cl.Cmd = cl.Cmd[0:0]
-				update()
-			} else {
-				return
-			}
-		case termbox.KeyEnter:
-			err := focus_stack.Front().Value.(gadgets.InputReceiver).Finalize()
-			if err != nil {
-				display_error(err)
-			} else {
-				if tb != nil {
-					focus_stack.Remove(focus_stack.Front())
-					tb = nil
-					update()
+
+				if focus_stack.Len() <= 0 {
+					return
 				}
 			}
-			update()
-		case termbox.KeyBackspace2:
-			err := ls.CdUp()
-			display_error(err)
-			cl.Cmd = cl.Cmd[0:0]
-			update()
-		case termbox.KeyCtrlH: fallthrough
-		case termbox.KeyArrowLeft:
-			ls.MoveCursorLeft()
-			update()
-		case termbox.KeyCtrlJ: fallthrough
-		case termbox.KeyArrowDown:
-			ls.MoveCursorDown()
-			update()
-		case termbox.KeyCtrlK: fallthrough
-		case termbox.KeyArrowUp:
-			ls.MoveCursorUp()
-			update()
-		case termbox.KeyCtrlL: fallthrough
-		case termbox.KeyArrowRight:
-			ls.MoveCursorRight()
-			update()
-		case termbox.KeyCtrlN:
-			err := ls.NextDirectory()
-			display_error(err)
-			update()
-		case termbox.KeyCtrlP:
-			err := ls.PrevDirectory()
-			display_error(err)
-			update()
-		case termbox.KeyCtrlB:
-			file, ok := ls.GetSelected()
-			if ok {
-				mp.PlayFile(file)
-			} else {
-				fmt.Println(file)
+		case termbox.KeyEnter:
+			status := focus_stack.Front().Value.(gadgets.InputReceiver).Finalize()
+			
+			if status.Done {
+				err = focus_stack.Front().Value.(gadgets.InputReceiver).Deactivate()
+				focus_stack.Remove(focus_stack.Front())
+			}
+			if status.Chain != nil {
+				err = status.Chain
 			}
 		case termbox.KeyF1:
-			if tb == nil {
-				var err error
-				tb, err = gadgets.CreateTextBox("Change directory:", width, height)
+			if !gadgets.TextBoxIsOpen {
+				tb, err := gadgets.CreateTextBox("Change directory:", width, height)
 				if err != nil {
 					display_error(err)
 					continue
 				}
 				tb.X = width / 2 - tb.Width / 2
 				tb.Y = height / 2 - tb.Height / 2
-				tb.FinalizeCallback = func(dir string) error { return ls.ChangeDirectory(dir); }
+				tb.FinalizeCallback = func(dir string) error { return dl.ChangeDirectory(dir); }
 				focus_stack.PushFront(tb)
-				update()
 			}
+		case termbox.KeyF4:
+				rl := gadgets.InitRecursiveFromDirectory(dl, update_chan)
+				focus_stack.PushFront(rl)
 		case termbox.KeyCtrlSpace:
-			err := mp.(*MP.VLC).Pause()
-			display_error(err)
+			err = MP.GlobalMediaPlayer.(*MP.VLC).Pause()
 		}
 
-		focus_stack.Front().Value.(gadgets.InputReceiver).Input(event)
+		err = focus_stack.Front().Value.(gadgets.InputReceiver).Input(event)
+
+		display_error(err)
 		update()
 
-	case <-sb.UpdateTicks:
+	case <-update_chan:
 		update()
 	}}
 }
@@ -143,44 +100,42 @@ func feed_events() {
 
 func initialize_globals() {
 	mp_info := MP.InitMediaPlayerFlagParser()
-	flag.StringVar(&media_extensions, "extensions", ".avi,.mkv,.rar,.mpg,.wmv", "Comma separated list of file extensions that should be considered video files.")
+	flag.StringVar(&media_extensions, "extensions", ".avi,.mkv,.mpg,.wmv",
+			"Comma separated list of file extensions that should be considered video files.")
+	flag.IntVar(&gadgets.LS_COL_WIDTH, "cw", 50, "Column width for directory listing.")
+	flag.BoolVar(&backend.FilterSubs, "filter-subs", true,
+			"If set to true, rar files matching [.-]subs[.-] will be filtered out from recursive listings.")
+	flag.BoolVar(&backend.FilterSamples, "filter-samples", true,
+			"If set to true, video files matching [.-]sample[.-] will be filtered out from recursive listings.")
 	flag.Parse()
 
 	width, height = termbox.Size()
-	ls = gadgets.NewListing(0, 0, width, height - 2, &sb)
+	dl = gadgets.NewListing(0, 0, width, height - 1, update_chan)
+
+
 	backend.VideoExtensions = strings.Split(media_extensions, ",")
 	var err error
-	mp, err = mp_info.CreateMediaPlayer()
+	MP.GlobalMediaPlayer, err = mp_info.CreateMediaPlayer()
 	if err != nil {
 		panic(err)
 	}
 
-	sl.X = 0; sl.Y = height-2;
+	sl.X = 0; sl.Y = height-1;
 	sl.Length = width
 
-	cl.X = 0; cl.Y = height-1;
-	cl.Length = width;
-	cl.FG = termbox.ColorWhite; cl.BG = termbox.ColorBlack;
-	cl.Cmd = make([]byte, 0, 8)
-	cl.FillRune = ' '
-	cl.Prefix = "> "
-	cl.FinalizeCallback = func(_ string) error { ls.CdHighlighted(); cl.Cmd = cl.Cmd[0:0]; return nil; }
-
 	focus_stack = list.New()
-	focus_stack.PushFront(&cl)
+	focus_stack.PushFront(dl)
 }
 
 func update() {
-	// There's error checking to be done here... 
 	termbox.Clear(termbox.ColorBlack, termbox.ColorBlack)
-	ls.UpdateFilter(string(cl.Cmd))
-	ls.PrintDirectoryListing()
-	sb.WriteAll()
-	cl.Draw()
-	sl.Draw()
-	if tb != nil {
-		tb.Draw()
+
+	for drawable := focus_stack.Back(); drawable != nil; drawable = drawable.Prev() {
+		is_focused := drawable.Prev() == nil
+		err := drawable.Value.(gadgets.InputReceiver).Draw(is_focused)
+		display_error(err)
 	}
+
 	termbox.Flush()
 }
 

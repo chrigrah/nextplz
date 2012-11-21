@@ -7,12 +7,26 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
+type IRStatus struct {
+	Done bool
+	Chain error
+}
+
 type InputReceiver interface {
-	Input(termbox.Event) bool
-	Finalize() error
+	Input(termbox.Event) error
+	Finalize() IRStatus
+	HandleEscape() bool
+
+	Draw(is_focused bool) error
+	//Insert() error
+	Deactivate() error
 
 	SetFinalizeCallback(func(string) error)
 }
+
+var (
+	TextBoxIsOpen bool = false
+)
 
 type TextBox struct {
 	question string
@@ -34,10 +48,25 @@ func (tb *TextBox) SetFinalizeCallback(callback func(string) error) {
 	tb.FinalizeCallback = callback
 }
 
-func (tb *TextBox) Finalize() error {
+func (tb *TextBox) Finalize() IRStatus {
 	err := tb.FinalizeCallback(string(tb.cl.Cmd))
 	tb.cl.Cmd = tb.cl.Cmd[0:0]
-	return err
+
+	TextBoxIsOpen = false
+	return IRStatus{true, err}
+}
+
+func (tb *TextBox) HandleEscape() bool {
+	if len(tb.cl.Cmd) > 0 {
+		tb.cl.Cmd = tb.cl.Cmd[0:0]
+		return true
+	}
+	return false
+}
+
+func (tb *TextBox) Deactivate() error {
+	TextBoxIsOpen = false
+	return nil
 }
 
 func CreateTextBox(question string, maxwidth, maxheight int) (*TextBox, error) {
@@ -76,14 +105,15 @@ func CreateTextBox(question string, maxwidth, maxheight int) (*TextBox, error) {
 		Cmd: make([]byte, 0, 8),
 	}
 
+	TextBoxIsOpen = true
 	return &tb, nil
 }
 
-func (tb *TextBox) Input(ev termbox.Event) bool {
+func (tb *TextBox) Input(ev termbox.Event) error {
 	return tb.cl.Input(ev)
 }
 
-func (tb *TextBox) Draw() {
+func (tb *TextBox) Draw(is_focused bool) error {
 	tb.cl.X = tb.X + 2
 	tb.cl.Y = tb.Y +tb.Height - 3
 
@@ -91,7 +121,9 @@ func (tb *TextBox) Draw() {
 	tb.fill()
 	tb.draw_question()
 //	tb.draw_input()
-	tb.cl.Draw()
+	tb.cl.Draw(is_focused)
+
+	return nil
 }
 
 func (tb *TextBox) draw_borders() {

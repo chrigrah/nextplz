@@ -2,313 +2,209 @@ package gadgets
 
 import (
 	"os"
-	"strings"
-	"regexp"
 	"fmt"
 	"errors"
 	"github.com/chrigrah/nextplz/backend"
 	"github.com/chrigrah/nextplz/util"
+	MP "github.com/chrigrah/nextplz/media_player"
 	"github.com/nsf/termbox-go"
-	"container/list"
 )
 
-const (
-	COL_WIDTH int = 50
+var (
+	LS_COL_WIDTH int = 50 // Available as a command line flag - then it's const :)
 )
 
-type Listing struct {
+type DirectoryListing struct {
 	current_dir *backend.FileEntry
-	selection list.List
-	highlighted_element *list.Element
-	highlighted_index int
 
-	startx, starty int
-	width, height int
-	rows, cols int
-	col_at int
-	filter_nomatch bool
+	pl PrintableListing
+	CL CommandLine
+	sb util.ScrollingBoxes
 
-	sb *util.ScrollingBoxes
-
+	FinalizeCallback func(string) error
 	Debug_message string
 }
 
-func NewListing(startx, starty int, width, height int, sb *util.ScrollingBoxes) *Listing {
+func NewListing(startx, starty int, width, height int, update_chan chan int) *DirectoryListing {
 	directoryName, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
+	panic_perhaps(err)
 	cwd, err := backend.CreateDirEntry(directoryName)
 	panic_perhaps(err)
 
-	return &Listing{
+	dl := &DirectoryListing{
 		current_dir: cwd,
-		startx: startx,
-		starty: starty,
-		width:  width,
-		height: height,
-		sb: sb,
+		pl: PrintableListing{
+			column_width: LS_COL_WIDTH,
+			startx: startx,
+			starty: starty,
+			width:  width,
+			height: height-1,
+		},
 	}
+	dl.pl.sb = &dl.sb
+	dl.FinalizeCallback = func(_ string) error {
+		dl.CdHighlighted()
+		dl.CL.Cmd = dl.CL.Cmd[0:0]
+		return nil
+	}
+
+	dl.CL.X = startx
+	dl.CL.Y = starty + height - 1
+	dl.CL.Length = width;
+	dl.CL.FG = termbox.ColorWhite; dl.CL.BG = termbox.ColorBlack;
+	dl.CL.Cmd = make([]byte, 0, 8)
+	dl.CL.FillRune = ' '
+	dl.CL.Prefix = "> "
+
+	dl.pl.UpdateFilter(&dl.current_dir.Contents, string(dl.CL.Cmd))
+	dl.sb.UpdateChan = update_chan
+	go dl.sb.StartTicker()
+
+	return dl
 }
 
-func (ls *Listing) ChangeDirectory(dir string) error {
+func (dl *DirectoryListing) Input(event termbox.Event) (err error) {
+	switch event.Key {
+	case termbox.KeyF5:
+		dl.ChangeDirectory(dl.current_dir.AbsPath)
+	case termbox.KeyBackspace2:
+		err = dl.CdUp()
+		dl.CL.Cmd = dl.CL.Cmd[0:0]
+	case termbox.KeyCtrlH: fallthrough
+	case termbox.KeyArrowLeft:
+		dl.pl.MoveCursorLeft()
+	case termbox.KeyCtrlJ: fallthrough
+	case termbox.KeyArrowDown:
+		dl.pl.MoveCursorDown()
+	case termbox.KeyCtrlK: fallthrough
+	case termbox.KeyArrowUp:
+		dl.pl.MoveCursorUp()
+	case termbox.KeyCtrlL: fallthrough
+	case termbox.KeyArrowRight:
+		dl.pl.MoveCursorRight()
+	case termbox.KeyCtrlN:
+		err = dl.NextDirectory()
+	case termbox.KeyCtrlP:
+		err = dl.PrevDirectory()
+	case termbox.KeyCtrlB:
+		file, ok := dl.pl.GetSelected()
+		if ok {
+			MP.GlobalMediaPlayer.PlayFile(file)
+		} else {
+			err = errors.New(fmt.Sprintf("Could not play file: Invalid selection"))
+		}
+	default:
+		err = dl.CL.Input(event)
+	}
+
+	dl.pl.UpdateFilter(&dl.current_dir.Contents, string(dl.CL.Cmd))
+
+	return
+}
+
+func (dl *DirectoryListing) SetFinalizeCallback(callback func(string) error) {
+	dl.FinalizeCallback = callback
+}
+
+func (dl *DirectoryListing) Finalize() IRStatus {
+	return IRStatus{false, dl.FinalizeCallback(string(dl.CL.Cmd))}
+}
+
+func (dl *DirectoryListing) HandleEscape() bool {
+	if len(dl.CL.Cmd) > 0 {
+		dl.CL.Cmd = dl.CL.Cmd[0:0]
+		return true
+	}
+	return false
+}
+
+func (dl *DirectoryListing) Deactivate() error {
+	return nil
+}
+
+func (dl *DirectoryListing) ChangeDirectory(dir string) error {
 	cwd, err := backend.CreateDirEntry(dir)
 	if err != nil {
 		return err
 	}
 
-	*ls = Listing{
-		current_dir: cwd,
-		startx: ls.startx,
-		starty: ls.starty,
-		width:  ls.width,
-		height: ls.height,
-		sb: ls.sb,
+	dl.current_dir = cwd
+	dl.pl = PrintableListing{
+		column_width: LS_COL_WIDTH,
+		startx: dl.pl.startx,
+		starty: dl.pl.starty,
+		width:  dl.pl.width,
+		height: dl.pl.height,
+		sb: dl.pl.sb,
 	}
 	return nil
 }
 
-func (ls *Listing) PrintDirectoryListing() int {
-	var dir_header_fg termbox.Attribute
-	if ls.filter_nomatch {
-		dir_header_fg = termbox.ColorRed
+func (dl *DirectoryListing) Draw(is_focused bool) error {
+	if dl.Debug_message != "" {
+		dl.pl.header = dl.Debug_message
 	} else {
-		dir_header_fg = termbox.ColorWhite
+		dl.pl.header = dl.current_dir.AbsPath
 	}
 
-	ls.col_at = ls.calc_start_column()
+	dl.CL.Draw(is_focused)
+	dl.pl.PrintListing()
 
-	var header_text string
-	if ls.Debug_message != "" {
-		header_text = ls.Debug_message
-	} else {
-		header_text = ls.current_dir.AbsPath
-	}
+	dl.sb.Draw()
 
-	util.WriteString(0, 0, ls.width, dir_header_fg, termbox.ColorBlue, header_text)
-	ls.rows = ls.height - 1
-	ls.cols = (ls.selection.Len() / ls.height) + 1
-	max_cols := (ls.width / COL_WIDTH) + 1
-	num_files := util.Min(ls.selection.Len(), util.Min(max_cols, ls.cols) * ls.rows)
-	start_at := ls.col_at * ls.rows
-
-	var i int = 0
-	for e := ls.selection.Front(); e != nil && i-start_at < num_files; e = e.Next() {
-		if i < start_at {
-			i++
-			continue // Fast forward
-		}
-
-		effective_index := i - start_at
-		var file *backend.FileEntry = e.Value.(*backend.FileEntry)
-
-		ls.print_entry(
-			effective_index % ls.rows, effective_index / ls.rows,
-			file, e == ls.highlighted_element);
-		i++
-	}
-	return -1
+	return nil
 }
 
-func (ls *Listing) print_entry(row, col int, entry *backend.FileEntry, is_highlighted bool) {
-	var fg, bg termbox.Attribute
-	if is_highlighted {
-		bg = termbox.ColorMagenta
-	} else {
-		bg = termbox.ColorBlack
-	}
-
-	if !entry.IsAccessible {
-		fg = termbox.ColorRed
-	} else if entry.IsVideo {
-		fg = termbox.ColorGreen
-	} else if entry.IsDir {
-		fg = termbox.ColorCyan
-	} else {
-		fg = termbox.ColorWhite
-	}
-
-	str_width := util.Min(COL_WIDTH - 1, ls.width - (col * COL_WIDTH))
-	ls.sb.WriteString(uint16(col * COL_WIDTH), uint16(row + 1), str_width, fg, bg, entry.Name, is_highlighted)
+func (dl *DirectoryListing) GetPrintableListing() *PrintableListing {
+	return &dl.pl
 }
 
-func (ls *Listing) calc_start_column() (r int) {
-	var num_visible_cols int
-	var highlight_at_col int
-
-	if ls.rows == 0 {
-		return 0
-	}
-
-	num_visible_cols = int(ls.width / COL_WIDTH) - 1 // Fully visible columns
-	if (ls.selection.Len() / ls.rows) <= num_visible_cols {
-		return 0
-	}
-	highlight_at_col = int(ls.highlighted_index / ls.rows)
-	if highlight_at_col < ls.col_at {
-		return highlight_at_col
-	} else if highlight_at_col > ls.col_at + num_visible_cols {
-		return highlight_at_col - num_visible_cols
-	}
-	return ls.col_at
-}
-
-func (ls *Listing) UpdateFilter(input string) {
-	if ls.current_dir.Contents.Len() == 0 {
-		return // Special case
-	}
-
-	pattern := create_pattern_from_input(input)
-	regexp, err := regexp.Compile(pattern)
-	panic_perhaps(err)
-
-	highlighted_entry := ls.get_highlighted_entry()
-	ls.selection, ls.highlighted_element, ls.highlighted_index = select_and_highlight(&ls.current_dir.Contents, highlighted_entry, regexp)
-
-	if ls.selection.Len() == 0 {
-		ls.select_all()
-		ls.filter_nomatch = true
-	} else {
-		ls.filter_nomatch = false
-	}
-}
-
-func create_pattern_from_input(input string) string {
-	input = regexp.QuoteMeta(input)
-	input = strings.Replace(input, " ", "(.*)", -1)
-	input = fmt.Sprintf("(?i)(%s)", input)
-	return input
-}
-
-func select_and_highlight(all *list.List, old_selection *backend.FileEntry, re *regexp.Regexp) (selection list.List, highlight *list.Element, highlight_i int) {
-	var finalized_highlight bool = false
-	var seen_old_highlight bool = false
-	var i int = 0
-	selection = list.List{}
-
-	for e := all.Front(); e != nil; e = e.Next() {
-		seen_old_highlight = seen_old_highlight || e.Value.(*backend.FileEntry) == old_selection
-		matched := re.MatchString(e.Value.(*backend.FileEntry).Name)
-		if matched {
-			new_select_element := selection.PushBack(e.Value)
-
-			if !seen_old_highlight {
-				highlight = new_select_element
-				highlight_i = i
-			} else if !finalized_highlight {
-				highlight = new_select_element
-				highlight_i = i
-				finalized_highlight = true
-			}
-		}
-		i++
-	}
-	return
-}
-
-func (ls *Listing) select_all() {
-	highlighted_entry := ls.get_highlighted_entry()
-	for e := ls.current_dir.Contents.Front(); e != nil; e = e.Next() {
-		element := ls.selection.PushBack(e.Value) // Important that element is that of ls.selection
-		if element.Value.(*backend.FileEntry) == highlighted_entry {
-			ls.highlighted_element = element
-		}
-	}
-}
-
-func (ls *Listing) get_highlighted_entry() (result *backend.FileEntry) {
-	if ls.current_dir.Contents.Len() == 0 {
-		result = nil
-	} else if ls.highlighted_element != nil {
-		result = ls.highlighted_element.Value.(*backend.FileEntry)
-	} else {
-		result = ls.current_dir.Contents.Front().Value.(*backend.FileEntry)
-	}
-	return
-}
-
-func (ls *Listing) GetSelected() (abs_path string, ok bool) {
-	return ls.highlighted_element.Value.(*backend.FileEntry).AbsPath, true
-}
-
-func (ls *Listing) CdHighlighted() error {
-	if ls.highlighted_element == nil {
+func (dl *DirectoryListing) CdHighlighted() error {
+	if dl.pl.highlighted_element == nil {
 		return errors.New("No entry is highlighted. Is this an empty folder? Helloooooo....")
 	}
-	highlighted_entry := ls.highlighted_element.Value.(*backend.FileEntry)
+	highlighted_entry := dl.pl.highlighted_element.Value.(*backend.FileEntry)
 	if !highlighted_entry.IsDir {
 		return errors.New("Highlighted entry is not a directory")
 	}
-	return ls.ChangeDir(highlighted_entry)
+	return dl.ChangeDir(highlighted_entry)
 }
 
-func (ls *Listing) CdUp() error {
-	return ls.ChangeDir(ls.current_dir.GetParent())
+func (dl *DirectoryListing) CdUp() error {
+	return dl.ChangeDir(dl.current_dir.GetParent())
 }
 
-func (ls *Listing) ChangeDir(dir *backend.FileEntry) error {
+func (dl *DirectoryListing) ChangeDir(dir *backend.FileEntry) error {
 	err := dir.ValidateContents()
 	if err != nil {
 		dir.IsAccessible = false
 		return err
 	}
-	ls.current_dir = dir
-	ls.highlighted_element = nil
+	dl.current_dir = dir
+	dl.pl.highlighted_element = nil
 	return nil
 }
 
-func (ls *Listing) MoveCursorDown() {
-	next_element := ls.highlighted_element.Next()
-	if next_element != nil {
-		ls.highlighted_element = next_element
-	}
-}
-
-func (ls *Listing) MoveCursorUp() {
-	prev_element := ls.highlighted_element.Prev()
-	if prev_element != nil {
-		ls.highlighted_element = prev_element
-	}
-}
-
-func (ls *Listing) MoveCursorLeft() {
-	var element = ls.highlighted_element.Prev()
-
-	for i := 0; i < ls.rows && element != nil; i++ {
-		ls.highlighted_element = element
-		element = element.Prev()
-	}
-}
-
-func (ls *Listing) MoveCursorRight() {
-	var element = ls.highlighted_element.Next()
-
-	for i := 0; i < ls.rows && element != nil; i++ {
-		ls.highlighted_element = element
-		element = element.Next()
-	}
-}
-
-func (ls *Listing) PrevDirectory() error {
-	for element := ls.current_dir.GetElementInParent().Prev(); element != nil; element = element.Prev() {
+func (dl *DirectoryListing) PrevDirectory() error {
+	for element := dl.current_dir.GetElementInParent().Prev(); element != nil; element = element.Prev() {
 		at_entry := element.Value.(*backend.FileEntry)
 		if !at_entry.IsDir || !at_entry.IsAccessible {
 			continue
 		}
 
-		return ls.ChangeDir(element.Value.(*backend.FileEntry))
+		return dl.ChangeDir(element.Value.(*backend.FileEntry))
 	}
 	return errors.New("No previous directory")
 }
 
-func (ls *Listing) NextDirectory() error {
-	for element := ls.current_dir.GetElementInParent().Next(); element != nil; element = element.Next() {
+func (dl *DirectoryListing) NextDirectory() error {
+	for element := dl.current_dir.GetElementInParent().Next(); element != nil; element = element.Next() {
 		at_entry := element.Value.(*backend.FileEntry)
 		if !at_entry.IsDir || !at_entry.IsAccessible {
 			continue
 		}
 
-		return ls.ChangeDir(element.Value.(*backend.FileEntry))
+		return dl.ChangeDir(element.Value.(*backend.FileEntry))
 	}
 	return nil
 }
