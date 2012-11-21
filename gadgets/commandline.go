@@ -6,11 +6,11 @@ import (
 )
 
 type CommandLine struct {
-	X, Y int
-	Length int
-	FG, BG termbox.Attribute
-	Cmd []byte
-	Prefix string
+	X, Y     int
+	Length   int
+	FG, BG   termbox.Attribute
+	Cmd      []byte
+	Prefix   string
 	FillRune rune
 }
 
@@ -22,17 +22,17 @@ func (cl *CommandLine) Draw(draw_cursor bool) {
 	util.WriteString(cl.X, cl.Y, cl.Length, cl.FG, cl.BG, cl.Prefix)
 	util.WriteString_FillWithChar(cl.X+len(cl.Prefix), cl.Y, cl.Length, cl.FG, cl.BG, cmd, cl.FillRune)
 	if draw_cursor {
-		termbox.SetCursor(cl.X + len(cl.Prefix) + cmd_length, cl.Y)
+		termbox.SetCursor(cl.X+len(cl.Prefix)+cmd_length, cl.Y)
 	}
 }
 
 func (cl *CommandLine) append(char byte) {
 	at := len(cl.Cmd)
-	if cap(cl.Cmd) < at + 1 {	// Reallocate buffer with doubled capacity
-		tmpArr := make([]byte, at + 1, at*2)
+	if cap(cl.Cmd) < at+1 { // Reallocate buffer with doubled capacity
+		tmpArr := make([]byte, at+1, at*2)
 		copy(tmpArr, cl.Cmd)
 		cl.Cmd = tmpArr
-	} else {			// Increase length of slice to accomodate char
+	} else { // Increase length of slice to accomodate char
 		cl.Cmd = cl.Cmd[:at+1]
 	}
 	cl.Cmd[at] = char

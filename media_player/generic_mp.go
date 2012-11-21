@@ -3,10 +3,10 @@ package media_player
 import (
 	"fmt"
 	"net"
-//	"time"
+	//	"time"
 	"flag"
-	"strings"
 	"os/exec"
+	"strings"
 )
 
 type MediaPlayer interface {
@@ -16,12 +16,12 @@ type MediaPlayer interface {
 
 type MediaPlayerInitInfo struct {
 	Executable string
-	Arguments string
+	Arguments  string
 }
 
 var GlobalMediaPlayer MediaPlayer
 
-func InitMediaPlayerFlagParser() *MediaPlayerInitInfo{
+func InitMediaPlayerFlagParser() *MediaPlayerInitInfo {
 	var info MediaPlayerInitInfo
 	flag.StringVar(&info.Executable, "exe", "", "The name of the media player executable (must be on system path)")
 	flag.StringVar(&info.Arguments, "args", "", "Arguments to be passed to the media player (space separates, no escaping I'm afraid)")
@@ -44,7 +44,7 @@ func (info *MediaPlayerInitInfo) CreateMediaPlayer() (MediaPlayer, error) {
 		mp.Args = make([]string, 1)
 	} else {
 		static_args := strings.Split(info.Arguments, " ")
-		mp.Args = make([]string, len(static_args) + 1)
+		mp.Args = make([]string, len(static_args)+1)
 		copy(mp.Args, static_args)
 	}
 
@@ -63,7 +63,7 @@ func CreateDefaultMediaPlayer() (MediaPlayer, error) {
 
 type CustomMediaPlayer struct {
 	Executable string
-	Args []string
+	Args       []string
 }
 
 func (mp *CustomMediaPlayer) PlayFile(file string) error {
@@ -92,7 +92,9 @@ func (vlc *VLC) TryQueue(file string) error {
 
 	result := make([]byte, 1024)
 	err = vlc_rc_exec(vlcConn, fmt.Sprintf("add %s\n", file), result)
-	if err != nil { return err; }
+	if err != nil {
+		return err
+	}
 
 	vlcConn.Close()
 	return nil
@@ -121,7 +123,9 @@ func (vlc *VLC) Pause() error {
 
 	result := make([]byte, 1024)
 	err = vlc_rc_exec(vlcConn, "pause\n", result)
-	if err != nil { return err; }
+	if err != nil {
+		return err
+	}
 
 	vlcConn.Close()
 	return nil

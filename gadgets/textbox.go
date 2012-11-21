@@ -1,14 +1,14 @@
 package gadgets
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 	"github.com/chrigrah/nextplz/util"
 	"github.com/nsf/termbox-go"
 )
 
 type IRStatus struct {
-	Done bool
+	Done  bool
 	Chain error
 }
 
@@ -29,19 +29,19 @@ var (
 )
 
 type TextBox struct {
-	question string
-	X, Y int
+	question      string
+	X, Y          int
 	Width, Height int
-	cl *CommandLine
+	cl            *CommandLine
 
 	FinalizeCallback func(string) error
 }
 
 const (
 	horizontal_overhead int = 4
-	vertical_overhead int = 6 // borders and inputbox
-	box_minheight int = vertical_overhead + 1
-	comfortable_width = 30
+	vertical_overhead   int = 6 // borders and inputbox
+	box_minheight       int = vertical_overhead + 1
+	comfortable_width       = 30
 )
 
 func (tb *TextBox) SetFinalizeCallback(callback func(string) error) {
@@ -83,8 +83,8 @@ func CreateTextBox(question string, maxwidth, maxheight int) (*TextBox, error) {
 	needed_rows := question_rows + vertical_overhead
 	if needed_rows > maxheight {
 		return nil, errors.New(fmt.Sprintf(
-				"Not enough room provided for textbox. maxwidth:%d maxheight:%d needed_rows:%d",
-				maxwidth, maxheight, needed_rows))
+			"Not enough room provided for textbox. maxwidth:%d maxheight:%d needed_rows:%d",
+			maxwidth, maxheight, needed_rows))
 	}
 	if question_rows > 1 {
 		tb.Width = maxwidth
@@ -97,12 +97,12 @@ func CreateTextBox(question string, maxwidth, maxheight int) (*TextBox, error) {
 	tb.Height = question_rows + vertical_overhead
 
 	tb.cl = &CommandLine{
-		Length: tb.Width - 4,
-		FG: termbox.ColorWhite,
-		BG: termbox.ColorRed,
-		Prefix: "",
+		Length:   tb.Width - 4,
+		FG:       termbox.ColorWhite,
+		BG:       termbox.ColorRed,
+		Prefix:   "",
 		FillRune: '_',
-		Cmd: make([]byte, 0, 8),
+		Cmd:      make([]byte, 0, 8),
 	}
 
 	TextBoxIsOpen = true
@@ -115,12 +115,12 @@ func (tb *TextBox) Input(ev termbox.Event) error {
 
 func (tb *TextBox) Draw(is_focused bool) error {
 	tb.cl.X = tb.X + 2
-	tb.cl.Y = tb.Y +tb.Height - 3
+	tb.cl.Y = tb.Y + tb.Height - 3
 
 	tb.draw_borders()
 	tb.fill()
 	tb.draw_question()
-//	tb.draw_input()
+	//	tb.draw_input()
 	tb.cl.Draw(is_focused)
 
 	return nil
@@ -128,18 +128,18 @@ func (tb *TextBox) Draw(is_focused bool) error {
 
 func (tb *TextBox) draw_borders() {
 	termbox.SetCell(tb.X, tb.Y, '+', termbox.ColorWhite, termbox.ColorBlue)
-	termbox.SetCell(tb.X + tb.Width-1, tb.Y, '+', termbox.ColorWhite, termbox.ColorBlue)
-	termbox.SetCell(tb.X, tb.Y + tb.Height-1, '+', termbox.ColorWhite, termbox.ColorBlue)
-	termbox.SetCell(tb.X + tb.Width-1, tb.Y + tb.Height-1, '+', termbox.ColorWhite, termbox.ColorBlue)
-	util.RepeatCharX(tb.X+1, tb.X + tb.Width-1, tb.Y, '-', termbox.ColorWhite, termbox.ColorBlue)
-	util.RepeatCharX(tb.X+1, tb.X + tb.Width-1, tb.Y + tb.Height - 1, '-', termbox.ColorWhite, termbox.ColorBlue)
-	util.RepeatCharY(tb.Y+1, tb.Y + tb.Height-1, tb.X, '|', termbox.ColorWhite, termbox.ColorBlue)
-	util.RepeatCharY(tb.Y+1, tb.Y + tb.Height-1, tb.X + tb.Width - 1, '|', termbox.ColorWhite, termbox.ColorBlue)
+	termbox.SetCell(tb.X+tb.Width-1, tb.Y, '+', termbox.ColorWhite, termbox.ColorBlue)
+	termbox.SetCell(tb.X, tb.Y+tb.Height-1, '+', termbox.ColorWhite, termbox.ColorBlue)
+	termbox.SetCell(tb.X+tb.Width-1, tb.Y+tb.Height-1, '+', termbox.ColorWhite, termbox.ColorBlue)
+	util.RepeatCharX(tb.X+1, tb.X+tb.Width-1, tb.Y, '-', termbox.ColorWhite, termbox.ColorBlue)
+	util.RepeatCharX(tb.X+1, tb.X+tb.Width-1, tb.Y+tb.Height-1, '-', termbox.ColorWhite, termbox.ColorBlue)
+	util.RepeatCharY(tb.Y+1, tb.Y+tb.Height-1, tb.X, '|', termbox.ColorWhite, termbox.ColorBlue)
+	util.RepeatCharY(tb.Y+1, tb.Y+tb.Height-1, tb.X+tb.Width-1, '|', termbox.ColorWhite, termbox.ColorBlue)
 }
 
 func (tb *TextBox) fill() {
-	for y := tb.Y + 1; y < tb.Y + tb.Height - 1; y++ {
-		util.FillLineTo(tb.X+1, y, tb.X + tb.Width-1, termbox.ColorBlue)
+	for y := tb.Y + 1; y < tb.Y+tb.Height-1; y++ {
+		util.FillLineTo(tb.X+1, y, tb.X+tb.Width-1, termbox.ColorBlue)
 	}
 }
 

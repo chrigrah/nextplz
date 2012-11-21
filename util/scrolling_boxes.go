@@ -1,24 +1,24 @@
 package util
 
 import (
-	"time"
-	"sync"
 	"github.com/nsf/termbox-go"
+	"sync"
+	"time"
 )
 
 type write_entry struct {
-	text string
-	fg, bg termbox.Attribute
+	text      string
+	fg, bg    termbox.Attribute
 	box_width int
 	scrolling bool
 }
 
 type line_entry struct {
 	replacement_entry write_entry
-	active_entry write_entry
-	scroll_at int
-	edge_pause int
-	Fresh bool
+	active_entry      write_entry
+	scroll_at         int
+	edge_pause        int
+	Fresh             bool
 }
 
 const (
@@ -28,10 +28,10 @@ const (
 func (le *line_entry) Write(x, y uint16) {
 	if len(le.active_entry.text) < le.active_entry.box_width || !le.active_entry.scrolling {
 		WriteString(int(x), int(y), le.active_entry.box_width, le.active_entry.fg, le.active_entry.bg,
-					le.active_entry.text)
+			le.active_entry.text)
 	} else {
 		WriteString(int(x), int(y), le.active_entry.box_width, le.active_entry.fg, le.active_entry.bg,
-					string([]byte(le.active_entry.text)[le.scroll_at:]))
+			string([]byte(le.active_entry.text)[le.scroll_at:]))
 	}
 }
 
@@ -61,15 +61,15 @@ func (le *line_entry) Tick(x, y uint16) {
 }
 
 type ScrollingBoxes struct {
-	lines map[uint32] *line_entry
-	lock sync.Mutex
+	lines      map[uint32]*line_entry
+	lock       sync.Mutex
 	UpdateChan chan int
 }
 
 var DefaultSL ScrollingBoxes
 
 func (sl *ScrollingBoxes) StartTicker() {
-	sl.lines = make(map[uint32] *line_entry)
+	sl.lines = make(map[uint32]*line_entry)
 	tick_len, _ := time.ParseDuration("250ms")
 	tick_chan := time.Tick(tick_len)
 
@@ -103,17 +103,17 @@ func (sl *ScrollingBoxes) WriteString(x, y uint16, width int, fg, bg termbox.Att
 		return true
 	}
 
-	sl.lines[index] = &line_entry {
+	sl.lines[index] = &line_entry{
 		active_entry: write_entry{
-				text: str,
-				fg: fg,
-				bg: bg,
-				box_width: width,
-				scrolling: scrolling,
-			},
-		scroll_at: 0,
+			text:      str,
+			fg:        fg,
+			bg:        bg,
+			box_width: width,
+			scrolling: scrolling,
+		},
+		scroll_at:  0,
 		edge_pause: 0,
-		Fresh: true,
+		Fresh:      true,
 	}
 
 	return true
@@ -124,7 +124,7 @@ func (sl *ScrollingBoxes) ScrollTick() {
 	defer sl.lock.Unlock()
 
 	for index, value := range sl.lines {
-		y := uint16(index % (1<<16))
+		y := uint16(index % (1 << 16))
 		x := uint16(index >> 16)
 		value.Tick(x, y)
 		//value.Write(x, y)
@@ -136,7 +136,7 @@ func (sl *ScrollingBoxes) Draw() {
 	defer sl.lock.Unlock()
 
 	for index, value := range sl.lines {
-		y := uint16(index % (1<<16))
+		y := uint16(index % (1 << 16))
 		x := uint16(index >> 16)
 		if !value.Fresh {
 			delete(sl.lines, index)

@@ -1,13 +1,13 @@
 package gadgets
 
 import (
-	"os"
-	"fmt"
 	"errors"
+	"fmt"
 	"github.com/chrigrah/nextplz/backend"
-	"github.com/chrigrah/nextplz/util"
 	MP "github.com/chrigrah/nextplz/media_player"
+	"github.com/chrigrah/nextplz/util"
 	"github.com/nsf/termbox-go"
+	"os"
 )
 
 var (
@@ -22,7 +22,7 @@ type DirectoryListing struct {
 	sb util.ScrollingBoxes
 
 	FinalizeCallback func(string) error
-	Debug_message string
+	Debug_message    string
 }
 
 func NewListing(startx, starty int, width, height int, update_chan chan int) *DirectoryListing {
@@ -35,10 +35,10 @@ func NewListing(startx, starty int, width, height int, update_chan chan int) *Di
 		current_dir: cwd,
 		pl: PrintableListing{
 			column_width: LS_COL_WIDTH,
-			startx: startx,
-			starty: starty,
-			width:  width,
-			height: height-1,
+			startx:       startx,
+			starty:       starty,
+			width:        width,
+			height:       height - 1,
 		},
 	}
 	dl.pl.sb = &dl.sb
@@ -50,8 +50,9 @@ func NewListing(startx, starty int, width, height int, update_chan chan int) *Di
 
 	dl.CL.X = startx
 	dl.CL.Y = starty + height - 1
-	dl.CL.Length = width;
-	dl.CL.FG = termbox.ColorWhite; dl.CL.BG = termbox.ColorBlack;
+	dl.CL.Length = width
+	dl.CL.FG = termbox.ColorWhite
+	dl.CL.BG = termbox.ColorBlack
 	dl.CL.Cmd = make([]byte, 0, 8)
 	dl.CL.FillRune = ' '
 	dl.CL.Prefix = "> "
@@ -70,16 +71,20 @@ func (dl *DirectoryListing) Input(event termbox.Event) (err error) {
 	case termbox.KeyBackspace2:
 		err = dl.CdUp()
 		dl.CL.Cmd = dl.CL.Cmd[0:0]
-	case termbox.KeyCtrlH: fallthrough
+	case termbox.KeyCtrlH:
+		fallthrough
 	case termbox.KeyArrowLeft:
 		dl.pl.MoveCursorLeft()
-	case termbox.KeyCtrlJ: fallthrough
+	case termbox.KeyCtrlJ:
+		fallthrough
 	case termbox.KeyArrowDown:
 		dl.pl.MoveCursorDown()
-	case termbox.KeyCtrlK: fallthrough
+	case termbox.KeyCtrlK:
+		fallthrough
 	case termbox.KeyArrowUp:
 		dl.pl.MoveCursorUp()
-	case termbox.KeyCtrlL: fallthrough
+	case termbox.KeyCtrlL:
+		fallthrough
 	case termbox.KeyArrowRight:
 		dl.pl.MoveCursorRight()
 	case termbox.KeyCtrlN:
@@ -131,11 +136,11 @@ func (dl *DirectoryListing) ChangeDirectory(dir string) error {
 	dl.current_dir = cwd
 	dl.pl = PrintableListing{
 		column_width: LS_COL_WIDTH,
-		startx: dl.pl.startx,
-		starty: dl.pl.starty,
-		width:  dl.pl.width,
-		height: dl.pl.height,
-		sb: dl.pl.sb,
+		startx:       dl.pl.startx,
+		starty:       dl.pl.starty,
+		width:        dl.pl.width,
+		height:       dl.pl.height,
+		sb:           dl.pl.sb,
 	}
 	return nil
 }

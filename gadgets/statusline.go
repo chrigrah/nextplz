@@ -7,7 +7,7 @@ import (
 
 type StatusLine struct {
 	Status string
-	X, Y int
+	X, Y   int
 	Length int
 	FG, BG termbox.Attribute
 }

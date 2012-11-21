@@ -1,13 +1,13 @@
 package gadgets
 
 import (
-	"fmt"
-	"strings"
-	"regexp"
 	"container/list"
-	"github.com/chrigrah/nextplz/util"
+	"fmt"
 	"github.com/chrigrah/nextplz/backend"
+	"github.com/chrigrah/nextplz/util"
 	"github.com/nsf/termbox-go"
+	"regexp"
+	"strings"
 )
 
 type Listing interface {
@@ -22,13 +22,13 @@ type PrintableListing struct {
 	items list.List
 
 	highlighted_element *list.Element
-	highlighted_index int
+	highlighted_index   int
 
 	startx, starty int
-	width, height int
-	column_width int
-	rows, cols int
-	col_at int
+	width, height  int
+	column_width   int
+	rows, cols     int
+	col_at         int
 	filter_nomatch bool
 
 	sb *util.ScrollingBoxes
@@ -62,21 +62,21 @@ func (pl *PrintableListing) PrintListing() int {
 
 		effective_index := i - start_at
 
-		if (e != nil) {
+		if e != nil {
 			var file *backend.FileEntry = e.Value.(*backend.FileEntry)
 
 			pl.print_entry(
-				effective_index % pl.rows, effective_index / pl.rows,
-				file, e == pl.highlighted_element);
+				effective_index%pl.rows, effective_index/pl.rows,
+				file, e == pl.highlighted_element)
 
 			e = e.Next()
 		} else {
 			col := effective_index / pl.rows
 			row := effective_index % pl.rows
-			str_width := util.Min(pl.column_width, pl.width - (col * pl.column_width))
+			str_width := util.Min(pl.column_width, pl.width-(col*pl.column_width))
 			pl.sb.WriteString(
-					uint16(col * pl.column_width), uint16(row + 1), str_width,
-					termbox.ColorBlack, termbox.ColorBlack,	"", false);
+				uint16(col*pl.column_width), uint16(row+1), str_width,
+				termbox.ColorBlack, termbox.ColorBlack, "", false)
 		}
 		i++
 	}
@@ -105,15 +105,15 @@ func (pl *PrintableListing) print_entry(row, col int, entry *backend.FileEntry, 
 	str_width := pl.column_width - 1
 	if str_width < room_left {
 		pl.sb.WriteString(
-				uint16(col * pl.column_width), uint16(row + 1), str_width,
-				fg, bg,	entry.Name, is_highlighted);
-		
+			uint16(col*pl.column_width), uint16(row+1), str_width,
+			fg, bg, entry.Name, is_highlighted)
+
 		// Fill in the blank spot between columns
-		termbox.SetCell((col + 1) * pl.column_width - 1, row + 1, ' ', termbox.ColorBlack, termbox.ColorBlack)
+		termbox.SetCell((col+1)*pl.column_width-1, row+1, ' ', termbox.ColorBlack, termbox.ColorBlack)
 	} else {
 		pl.sb.WriteString(
-				uint16(col * pl.column_width), uint16(row + 1), room_left,
-				fg, bg,	entry.Name, is_highlighted);
+			uint16(col*pl.column_width), uint16(row+1), room_left,
+			fg, bg, entry.Name, is_highlighted)
 	}
 }
 
@@ -125,14 +125,14 @@ func (pl *PrintableListing) calc_start_column() (r int) {
 		return 0
 	}
 
-	num_visible_cols = int(pl.width / pl.column_width) - 1 // Fully visible columns
+	num_visible_cols = int(pl.width/pl.column_width) - 1 // Fully visible columns
 	if (pl.items.Len() / pl.rows) <= num_visible_cols {
 		return 0
 	}
 	highlight_at_col = int(pl.highlighted_index / pl.rows)
 	if highlight_at_col < pl.col_at {
 		return highlight_at_col
-	} else if highlight_at_col > pl.col_at + num_visible_cols {
+	} else if highlight_at_col > pl.col_at+num_visible_cols {
 		return highlight_at_col - num_visible_cols
 	}
 	return pl.col_at
@@ -211,7 +211,9 @@ func (pl *PrintableListing) GetSelected() (abs_path string, ok bool) {
 }
 
 func (pl *PrintableListing) MoveCursorDown() {
-	if pl.highlighted_element == nil { return; }
+	if pl.highlighted_element == nil {
+		return
+	}
 	next_element := pl.highlighted_element.Next()
 	if next_element != nil {
 		pl.highlighted_element = next_element
@@ -219,7 +221,9 @@ func (pl *PrintableListing) MoveCursorDown() {
 }
 
 func (pl *PrintableListing) MoveCursorUp() {
-	if pl.highlighted_element == nil { return; }
+	if pl.highlighted_element == nil {
+		return
+	}
 	prev_element := pl.highlighted_element.Prev()
 	if prev_element != nil {
 		pl.highlighted_element = prev_element
@@ -227,7 +231,9 @@ func (pl *PrintableListing) MoveCursorUp() {
 }
 
 func (pl *PrintableListing) MoveCursorLeft() {
-	if pl.highlighted_element == nil { return; }
+	if pl.highlighted_element == nil {
+		return
+	}
 	var element = pl.highlighted_element.Prev()
 
 	for i := 0; i < pl.rows && element != nil; i++ {
@@ -237,7 +243,9 @@ func (pl *PrintableListing) MoveCursorLeft() {
 }
 
 func (pl *PrintableListing) MoveCursorRight() {
-	if pl.highlighted_element == nil { return; }
+	if pl.highlighted_element == nil {
+		return
+	}
 	var element = pl.highlighted_element.Next()
 
 	for i := 0; i < pl.rows && element != nil; i++ {
