@@ -30,6 +30,8 @@ func main() {
 	}
 	defer termbox.Close()
 
+	termbox.Clear(termbox.ColorBlack, termbox.ColorBlack)
+	
 	initialize_globals()
 	defer MP.GlobalMediaPlayer.Disconnect()
 
@@ -130,7 +132,7 @@ func initialize_globals() {
 }
 
 func update() {
-	termbox.Clear(termbox.ColorBlack, termbox.ColorBlack)
+	//termbox.Clear(termbox.ColorBlack, termbox.ColorBlack)
 
 	for drawable := focus_stack.Back(); drawable != nil; drawable = drawable.Prev() {
 		is_focused := drawable.Prev() == nil

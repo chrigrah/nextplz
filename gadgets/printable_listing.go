@@ -10,6 +10,16 @@ import (
 	"strings"
 )
 
+type PLEntry interface {
+	DisplayValue() string
+	FilterValue() string
+	Path() string
+
+	IsAccessible() bool
+	IsDir() bool
+	IsVideo() bool
+}
+
 type Listing interface {
 	UpdateFilter(input string)
 	PrintListing() int
@@ -34,7 +44,7 @@ type PrintableListing struct {
 	sb *util.ScrollingBoxes
 }
 
-func (pl *PrintableListing) PrintListing() int {
+func (pl *PrintableListing) PrintListing() {
 	var dir_header_fg termbox.Attribute
 	if pl.filter_nomatch {
 		dir_header_fg = termbox.ColorRed
@@ -63,11 +73,11 @@ func (pl *PrintableListing) PrintListing() int {
 		effective_index := i - start_at
 
 		if e != nil {
-			var file *backend.FileEntry = e.Value.(*backend.FileEntry)
+			var entry *PLEntry = e.Value.(PLEntry)
 
 			pl.print_entry(
 				effective_index%pl.rows, effective_index/pl.rows,
-				file, e == pl.highlighted_element)
+				entry, e == pl.highlighted_element)
 
 			e = e.Next()
 		} else {
@@ -80,10 +90,9 @@ func (pl *PrintableListing) PrintListing() int {
 		}
 		i++
 	}
-	return -1
 }
 
-func (pl *PrintableListing) print_entry(row, col int, entry *backend.FileEntry, is_highlighted bool) {
+func (pl *PrintableListing) print_entry(row, col int, entry PLEntry, is_highlighted bool) {
 	var fg, bg termbox.Attribute
 	if is_highlighted {
 		bg = termbox.ColorMagenta
@@ -91,11 +100,11 @@ func (pl *PrintableListing) print_entry(row, col int, entry *backend.FileEntry, 
 		bg = termbox.ColorBlack
 	}
 
-	if !entry.IsAccessible {
+	if !entry.IsAccessible() {
 		fg = termbox.ColorRed
-	} else if entry.IsVideo {
+	} else if entry.IsVideo() {
 		fg = termbox.ColorGreen
-	} else if entry.IsDir {
+	} else if entry.IsDir() {
 		fg = termbox.ColorCyan
 	} else {
 		fg = termbox.ColorWhite
@@ -106,14 +115,14 @@ func (pl *PrintableListing) print_entry(row, col int, entry *backend.FileEntry, 
 	if str_width < room_left {
 		pl.sb.WriteString(
 			uint16(col*pl.column_width), uint16(row+1), str_width,
-			fg, bg, entry.Name, is_highlighted)
+			fg, bg, entry.DisplayValue(), is_highlighted)
 
 		// Fill in the blank spot between columns
 		termbox.SetCell((col+1)*pl.column_width-1, row+1, ' ', termbox.ColorBlack, termbox.ColorBlack)
 	} else {
 		pl.sb.WriteString(
 			uint16(col*pl.column_width), uint16(row+1), room_left,
-			fg, bg, entry.Name, is_highlighted)
+			fg, bg, entry.DisplayValue(), is_highlighted)
 	}
 }
 
@@ -166,8 +175,8 @@ func (pl *PrintableListing) select_and_highlight(superset *list.List, re *regexp
 	old_selection := pl.get_highlighted_entry(superset)
 
 	for e := superset.Front(); e != nil; e = e.Next() {
-		seen_old_highlight = seen_old_highlight || e.Value.(*backend.FileEntry) == old_selection
-		matched := re.MatchString(e.Value.(*backend.FileEntry).Name)
+		seen_old_highlight = seen_old_highlight || e.Value.(PLEntry) == old_selection
+		matched := re.MatchString(e.Value.(PLEntry).DisplayValue())
 		if matched {
 			new_select_element := pl.items.PushBack(e.Value)
 
@@ -189,25 +198,25 @@ func (pl *PrintableListing) select_all(superset *list.List) {
 	highlighted_entry := pl.get_highlighted_entry(superset)
 	for e := superset.Front(); e != nil; e = e.Next() {
 		element := pl.items.PushBack(e.Value) // Important that element is that of ls.selection
-		if element.Value.(*backend.FileEntry) == highlighted_entry {
+		if element.Value.(PLEntry) == highlighted_entry {
 			pl.highlighted_element = element
 		}
 	}
 }
 
-func (pl *PrintableListing) get_highlighted_entry(superset *list.List) (result *backend.FileEntry) {
+func (pl *PrintableListing) get_highlighted_entry(superset *list.List) (result PLEntry) {
 	if superset.Len() == 0 {
 		result = nil
 	} else if pl.highlighted_element != nil {
-		result = pl.highlighted_element.Value.(*backend.FileEntry)
+		result = pl.highlighted_element.Value.(PLEntry)
 	} else {
-		result = superset.Front().Value.(*backend.FileEntry)
+		result = superset.Front().Value.(PLEntry)
 	}
 	return
 }
 
 func (pl *PrintableListing) GetSelected() (abs_path string, ok bool) {
-	return pl.highlighted_element.Value.(*backend.FileEntry).AbsPath, true
+	return pl.highlighted_element.Value.(PLEntry).Path(), true
 }
 
 func (pl *PrintableListing) MoveCursorDown() {
