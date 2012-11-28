@@ -50,7 +50,7 @@ func (tb *TextBox) SetFinalizeCallback(callback func(string) error) {
 
 func (tb *TextBox) Finalize() IRStatus {
 	err := tb.FinalizeCallback(string(tb.cl.Cmd))
-	tb.cl.Cmd = tb.cl.Cmd[0:0]
+	tb.cl.Clear()
 
 	TextBoxIsOpen = false
 	return IRStatus{true, err}
@@ -58,7 +58,7 @@ func (tb *TextBox) Finalize() IRStatus {
 
 func (tb *TextBox) HandleEscape() bool {
 	if len(tb.cl.Cmd) > 0 {
-		tb.cl.Cmd = tb.cl.Cmd[0:0]
+		tb.cl.Clear()
 		return true
 	}
 	return false
@@ -102,7 +102,7 @@ func CreateTextBox(question string, maxwidth, maxheight int) (*TextBox, error) {
 		BG:       termbox.ColorRed,
 		Prefix:   "",
 		FillRune: '_',
-		Cmd:      make([]byte, 0, 8),
+		Cmd:      make([]rune, 0, 8),
 	}
 
 	TextBoxIsOpen = true
@@ -148,12 +148,12 @@ func (tb *TextBox) draw_question() {
 	starty := tb.Y + 2
 	stopx := tb.X + tb.Width - 2
 	line_width := stopx - startx
-	question_barray := []byte(tb.question)
+	question_array := []rune(tb.question)
 
-	for i := starty; len(question_barray) > 0; i++ {
-		str_len := util.Min(line_width, len(question_barray))
-		str := string(question_barray[:str_len])
+	for i := starty; len(question_array) > 0; i++ {
+		str_len := util.Min(line_width, len(question_array))
+		str := string(question_array[:str_len])
 		util.WriteString(startx, i, line_width, termbox.ColorWhite, termbox.ColorBlue, str)
-		question_barray = question_barray[str_len:]
+		question_array = question_array[str_len:]
 	}
 }

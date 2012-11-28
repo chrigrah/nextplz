@@ -16,8 +16,10 @@ func WriteString_FillWithChar(x, y int, width int, fg, bg termbox.Attribute, str
 		str = str[:width]
 	}
 
-	for at, char := range str {
-		termbox.SetCell(x+at, y, rune(char), fg, bg)
+	at := 0
+	for _, char := range str {
+		termbox.SetCell(x+at, y, char, fg, bg)
+		at++
 	}
 
 	RepeatCharX(x+len(str), x+width, y, fill, fg, bg)

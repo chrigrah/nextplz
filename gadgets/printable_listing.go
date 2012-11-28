@@ -3,22 +3,12 @@ package gadgets
 import (
 	"container/list"
 	"fmt"
-	"github.com/chrigrah/nextplz/backend"
+	//"github.com/chrigrah/nextplz/backend"
 	"github.com/chrigrah/nextplz/util"
 	"github.com/nsf/termbox-go"
 	"regexp"
 	"strings"
 )
-
-type PLEntry interface {
-	DisplayValue() string
-	FilterValue() string
-	Path() string
-
-	IsAccessible() bool
-	IsDir() bool
-	IsVideo() bool
-}
 
 type Listing interface {
 	UpdateFilter(input string)
@@ -41,7 +31,8 @@ type PrintableListing struct {
 	col_at         int
 	filter_nomatch bool
 
-	sb *util.ScrollingBoxes
+	ElementToFilterValue func(interface{}) string
+	ElementPrintValue    func(element interface{}, x, y int, width int, is_highlighted bool)
 }
 
 func (pl *PrintableListing) PrintListing() {
@@ -73,57 +64,32 @@ func (pl *PrintableListing) PrintListing() {
 		effective_index := i - start_at
 
 		if e != nil {
-			var entry *PLEntry = e.Value.(PLEntry)
-
 			pl.print_entry(
 				effective_index%pl.rows, effective_index/pl.rows,
-				entry, e == pl.highlighted_element)
+				e, e == pl.highlighted_element)
 
 			e = e.Next()
 		} else {
 			col := effective_index / pl.rows
 			row := effective_index % pl.rows
 			str_width := util.Min(pl.column_width, pl.width-(col*pl.column_width))
-			pl.sb.WriteString(
-				uint16(col*pl.column_width), uint16(row+1), str_width,
-				termbox.ColorBlack, termbox.ColorBlack, "", false)
+			util.WriteString(
+				col*pl.column_width, row+1, str_width,
+				termbox.ColorBlack, termbox.ColorBlack, "")
 		}
 		i++
 	}
 }
 
-func (pl *PrintableListing) print_entry(row, col int, entry PLEntry, is_highlighted bool) {
-	var fg, bg termbox.Attribute
-	if is_highlighted {
-		bg = termbox.ColorMagenta
-	} else {
-		bg = termbox.ColorBlack
-	}
-
-	if !entry.IsAccessible() {
-		fg = termbox.ColorRed
-	} else if entry.IsVideo() {
-		fg = termbox.ColorGreen
-	} else if entry.IsDir() {
-		fg = termbox.ColorCyan
-	} else {
-		fg = termbox.ColorWhite
-	}
-
+func (pl *PrintableListing) print_entry(row, col int, entry *list.Element, is_highlighted bool) {
 	room_left := pl.width - (col * pl.column_width)
-	str_width := pl.column_width - 1
-	if str_width < room_left {
-		pl.sb.WriteString(
-			uint16(col*pl.column_width), uint16(row+1), str_width,
-			fg, bg, entry.DisplayValue(), is_highlighted)
-
-		// Fill in the blank spot between columns
+	if pl.column_width < room_left {
+		pl.ElementPrintValue(entry.Value, col*pl.column_width, row+1, pl.column_width-1, is_highlighted)
 		termbox.SetCell((col+1)*pl.column_width-1, row+1, ' ', termbox.ColorBlack, termbox.ColorBlack)
 	} else {
-		pl.sb.WriteString(
-			uint16(col*pl.column_width), uint16(row+1), room_left,
-			fg, bg, entry.DisplayValue(), is_highlighted)
+		pl.ElementPrintValue(entry.Value, col*pl.column_width, row+1, room_left, is_highlighted)
 	}
+
 }
 
 func (pl *PrintableListing) calc_start_column() (r int) {
@@ -175,8 +141,8 @@ func (pl *PrintableListing) select_and_highlight(superset *list.List, re *regexp
 	old_selection := pl.get_highlighted_entry(superset)
 
 	for e := superset.Front(); e != nil; e = e.Next() {
-		seen_old_highlight = seen_old_highlight || e.Value.(PLEntry) == old_selection
-		matched := re.MatchString(e.Value.(PLEntry).DisplayValue())
+		seen_old_highlight = seen_old_highlight || e.Value == old_selection
+		matched := re.MatchString(pl.ElementToFilterValue(e.Value))
 		if matched {
 			new_select_element := pl.items.PushBack(e.Value)
 
@@ -198,25 +164,25 @@ func (pl *PrintableListing) select_all(superset *list.List) {
 	highlighted_entry := pl.get_highlighted_entry(superset)
 	for e := superset.Front(); e != nil; e = e.Next() {
 		element := pl.items.PushBack(e.Value) // Important that element is that of ls.selection
-		if element.Value.(PLEntry) == highlighted_entry {
+		if element.Value == highlighted_entry {
 			pl.highlighted_element = element
 		}
 	}
 }
 
-func (pl *PrintableListing) get_highlighted_entry(superset *list.List) (result PLEntry) {
+func (pl *PrintableListing) get_highlighted_entry(superset *list.List) (result interface{}) {
 	if superset.Len() == 0 {
 		result = nil
 	} else if pl.highlighted_element != nil {
-		result = pl.highlighted_element.Value.(PLEntry)
+		result = pl.highlighted_element.Value
 	} else {
-		result = superset.Front().Value.(PLEntry)
+		result = superset.Front().Value
 	}
 	return
 }
 
-func (pl *PrintableListing) GetSelected() (abs_path string, ok bool) {
-	return pl.highlighted_element.Value.(PLEntry).Path(), true
+func (pl *PrintableListing) GetSelected() (selected interface{}, ok bool) {
+	return pl.highlighted_element.Value, true
 }
 
 func (pl *PrintableListing) MoveCursorDown() {

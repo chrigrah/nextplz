@@ -31,7 +31,7 @@ func main() {
 	defer termbox.Close()
 
 	termbox.Clear(termbox.ColorBlack, termbox.ColorBlack)
-	
+
 	initialize_globals()
 	defer MP.GlobalMediaPlayer.Disconnect()
 
@@ -111,6 +111,8 @@ func initialize_globals() {
 		"If set to true, rar files matching [.-]subs[.-] will be filtered out from recursive listings.")
 	flag.BoolVar(&backend.FilterSamples, "filter-samples", true,
 		"If set to true, video files matching [.-]sample[.-] will be filtered out from recursive listings.")
+	flag.BoolVar(&gadgets.EnableFoldersForRars, "rar-folders", true,
+		"If set to true rar files will also be filtered by folder in recursive listings")
 	flag.Parse()
 
 	width, height = termbox.Size()

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/chrigrah/nextplz/backend"
 	MP "github.com/chrigrah/nextplz/media_player"
-	"github.com/chrigrah/nextplz/util"
+	//"github.com/chrigrah/nextplz/util"
 	"github.com/nsf/termbox-go"
 	"os"
 )
@@ -15,11 +15,13 @@ var (
 )
 
 type DirectoryListing struct {
-	current_dir *backend.FileEntry
+	current_dir            *backend.FileEntry
+	current_coloredstrings map[*backend.FileEntry]backend.ColoredScrollingString
 
 	pl PrintableListing
 	CL CommandLine
-	sb util.ScrollingBoxes
+
+	tick_id uint
 
 	FinalizeCallback func(string) error
 	Debug_message    string
@@ -32,7 +34,8 @@ func NewListing(startx, starty int, width, height int, update_chan chan int) *Di
 	panic_perhaps(err)
 
 	dl := &DirectoryListing{
-		current_dir: cwd,
+		current_dir:            cwd,
+		current_coloredstrings: make(map[*backend.FileEntry]backend.ColoredScrollingString),
 		pl: PrintableListing{
 			column_width: LS_COL_WIDTH,
 			startx:       startx,
@@ -41,10 +44,11 @@ func NewListing(startx, starty int, width, height int, update_chan chan int) *Di
 			height:       height - 1,
 		},
 	}
-	dl.pl.sb = &dl.sb
+	dl.pl.ElementToFilterValue = dl_elementtofiltervalue_func()
+	dl.pl.ElementPrintValue = dl_elementprintvalue_func(dl)
 	dl.FinalizeCallback = func(_ string) error {
 		dl.CdHighlighted()
-		dl.CL.Cmd = dl.CL.Cmd[0:0]
+		dl.CL.Clear()
 		return nil
 	}
 
@@ -53,15 +57,52 @@ func NewListing(startx, starty int, width, height int, update_chan chan int) *Di
 	dl.CL.Length = width
 	dl.CL.FG = termbox.ColorWhite
 	dl.CL.BG = termbox.ColorBlack
-	dl.CL.Cmd = make([]byte, 0, 8)
+	dl.CL.Cmd = make([]rune, 0, 8)
 	dl.CL.FillRune = ' '
 	dl.CL.Prefix = "> "
 
 	dl.pl.UpdateFilter(&dl.current_dir.Contents, string(dl.CL.Cmd))
-	dl.sb.UpdateChan = update_chan
-	go dl.sb.StartTicker()
 
 	return dl
+}
+
+func dl_elementtofiltervalue_func() func(element interface{}) string {
+	return func(element interface{}) string {
+		return element.(*backend.FileEntry).Name
+	}
+}
+
+func dl_elementprintvalue_func(dl *DirectoryListing) func(interface{}, int, int, int, bool) {
+	return func(element interface{}, x, y int, width int, is_highlighted bool) {
+		entry := element.(*backend.FileEntry)
+
+		if cs, ok := dl.current_coloredstrings[entry]; ok {
+			cs.Print(x, y, width, is_highlighted, is_highlighted, dl.tick_id)
+		} else {
+			new_cs := fe_to_coloredstring(entry)
+			new_cs.Print(x, y, width, is_highlighted, is_highlighted, dl.tick_id)
+			dl.current_coloredstrings[entry] = new_cs
+		}
+
+		// Fill in the blank spot between columns
+		// TODO: need this?
+		//termbox.SetCell((col+1)*pl.column_width-1, row+1, ' ', termbox.ColorBlack, termbox.ColorBlack)
+	}
+}
+
+func fe_to_coloredstring(entry *backend.FileEntry) (cs backend.ColoredScrollingString) {
+	var fg termbox.Attribute
+	if !entry.IsAccessible {
+		fg = termbox.ColorRed
+	} else if entry.IsVideo {
+		fg = termbox.ColorGreen
+	} else if entry.IsDir {
+		fg = termbox.ColorCyan
+	} else {
+		fg = termbox.ColorWhite
+	}
+	cs.AppendString(entry.Name, fg)
+	return
 }
 
 func (dl *DirectoryListing) Input(event termbox.Event) (err error) {
@@ -70,11 +111,11 @@ func (dl *DirectoryListing) Input(event termbox.Event) (err error) {
 		dl.ChangeDirectory(dl.current_dir.AbsPath)
 	case termbox.KeyBackspace2:
 		err = dl.CdUp()
-		dl.CL.Cmd = dl.CL.Cmd[0:0]
+		dl.CL.Clear()
 	case termbox.KeyCtrlH:
 		fallthrough
-	case termbox.KeyArrowLeft:
-		dl.pl.MoveCursorLeft()
+	/*case termbox.KeyArrowLeft:
+	dl.pl.MoveCursorLeft()*/
 	case termbox.KeyCtrlJ:
 		fallthrough
 	case termbox.KeyArrowDown:
@@ -85,8 +126,8 @@ func (dl *DirectoryListing) Input(event termbox.Event) (err error) {
 		dl.pl.MoveCursorUp()
 	case termbox.KeyCtrlL:
 		fallthrough
-	case termbox.KeyArrowRight:
-		dl.pl.MoveCursorRight()
+	/*case termbox.KeyArrowRight:
+	dl.pl.MoveCursorRight()*/
 	case termbox.KeyCtrlN:
 		err = dl.NextDirectory()
 	case termbox.KeyCtrlP:
@@ -94,7 +135,8 @@ func (dl *DirectoryListing) Input(event termbox.Event) (err error) {
 	case termbox.KeyCtrlB:
 		file, ok := dl.pl.GetSelected()
 		if ok {
-			MP.GlobalMediaPlayer.PlayFile(file)
+			file_str := file.(*backend.FileEntry).AbsPath
+			MP.GlobalMediaPlayer.PlayFile(file_str)
 		} else {
 			err = errors.New(fmt.Sprintf("Could not play file: Invalid selection"))
 		}
@@ -117,7 +159,7 @@ func (dl *DirectoryListing) Finalize() IRStatus {
 
 func (dl *DirectoryListing) HandleEscape() bool {
 	if len(dl.CL.Cmd) > 0 {
-		dl.CL.Cmd = dl.CL.Cmd[0:0]
+		dl.CL.Clear()
 		return true
 	}
 	return false
@@ -134,14 +176,17 @@ func (dl *DirectoryListing) ChangeDirectory(dir string) error {
 	}
 
 	dl.current_dir = cwd
+	dl.current_coloredstrings = make(map[*backend.FileEntry]backend.ColoredScrollingString)
 	dl.pl = PrintableListing{
 		column_width: LS_COL_WIDTH,
 		startx:       dl.pl.startx,
 		starty:       dl.pl.starty,
 		width:        dl.pl.width,
 		height:       dl.pl.height,
-		sb:           dl.pl.sb,
 	}
+	dl.pl.ElementToFilterValue = dl_elementtofiltervalue_func()
+	dl.pl.ElementPrintValue = dl_elementprintvalue_func(dl)
+
 	return nil
 }
 
@@ -154,8 +199,6 @@ func (dl *DirectoryListing) Draw(is_focused bool) error {
 
 	dl.CL.Draw(is_focused)
 	dl.pl.PrintListing()
-
-	dl.sb.Draw()
 
 	return nil
 }
