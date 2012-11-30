@@ -2,8 +2,8 @@ package gadgets
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
-	//"github.com/chrigrah/nextplz/backend"
 	"github.com/chrigrah/nextplz/util"
 	"github.com/nsf/termbox-go"
 	"regexp"
@@ -44,19 +44,20 @@ func (pl *PrintableListing) PrintListing() {
 	}
 
 	pl.col_at = pl.calc_start_column()
-
 	util.WriteString(0, 0, pl.width, dir_header_fg, termbox.ColorBlue, pl.header)
 	pl.rows = pl.height - 1
 	pl.cols = (pl.items.Len() / pl.height) + 1
 	max_cols := (pl.width / pl.column_width) + 1
 	available_boxes := max_cols * pl.rows
-	//num_files := util.Min(pl.items.Len(), util.Min(max_cols, pl.cols) * pl.rows)
 	start_at := pl.col_at * pl.rows
 
 	var i int = 0
 	for e := pl.items.Front(); i-start_at < available_boxes; {
 		if i < start_at {
 			i++
+			if e == nil {
+				panic(errors.New(fmt.Sprintf("col_at: %d", pl.col_at)))
+			}
 			e = e.Next()
 			continue // Fast forward
 		}
@@ -100,7 +101,7 @@ func (pl *PrintableListing) calc_start_column() (r int) {
 		return 0
 	}
 
-	num_visible_cols = int(pl.width/pl.column_width) - 1 // Fully visible columns
+	num_visible_cols = util.Max(int(pl.width/pl.column_width)-1, 0) // Fully visible columns, at least one
 	if (pl.items.Len() / pl.rows) <= num_visible_cols {
 		return 0
 	}

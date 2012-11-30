@@ -4,14 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/chrigrah/nextplz/backend"
-	MP "github.com/chrigrah/nextplz/media_player"
-	//"github.com/chrigrah/nextplz/util"
+	"github.com/chrigrah/nextplz/media_player"
 	"github.com/nsf/termbox-go"
 	"os"
 )
 
 var (
-	LS_COL_WIDTH int = 50 // Available as a command line flag - then it's const :)
+	LS_COL_WIDTH int = 50
 )
 
 type DirectoryListing struct {
@@ -83,10 +82,6 @@ func dl_elementprintvalue_func(dl *DirectoryListing) func(interface{}, int, int,
 			new_cs.Print(x, y, width, is_highlighted, is_highlighted, dl.tick_id)
 			dl.current_coloredstrings[entry] = new_cs
 		}
-
-		// Fill in the blank spot between columns
-		// TODO: need this?
-		//termbox.SetCell((col+1)*pl.column_width-1, row+1, ' ', termbox.ColorBlack, termbox.ColorBlack)
 	}
 }
 
@@ -109,25 +104,21 @@ func (dl *DirectoryListing) Input(event termbox.Event) (err error) {
 	switch event.Key {
 	case termbox.KeyF5:
 		dl.ChangeDirectory(dl.current_dir.AbsPath)
-	case termbox.KeyBackspace2:
+	case termbox.KeyPgup:
 		err = dl.CdUp()
 		dl.CL.Clear()
-	case termbox.KeyCtrlH:
-		fallthrough
-	/*case termbox.KeyArrowLeft:
-	dl.pl.MoveCursorLeft()*/
-	case termbox.KeyCtrlJ:
+	case termbox.KeyCtrlY:
+		dl.pl.MoveCursorLeft()
+	case termbox.KeyCtrlU:
 		fallthrough
 	case termbox.KeyArrowDown:
 		dl.pl.MoveCursorDown()
-	case termbox.KeyCtrlK:
+	case termbox.KeyCtrlI:
 		fallthrough
 	case termbox.KeyArrowUp:
 		dl.pl.MoveCursorUp()
-	case termbox.KeyCtrlL:
-		fallthrough
-	/*case termbox.KeyArrowRight:
-	dl.pl.MoveCursorRight()*/
+	case termbox.KeyCtrlO:
+		dl.pl.MoveCursorRight()
 	case termbox.KeyCtrlN:
 		err = dl.NextDirectory()
 	case termbox.KeyCtrlP:
@@ -136,12 +127,18 @@ func (dl *DirectoryListing) Input(event termbox.Event) (err error) {
 		file, ok := dl.pl.GetSelected()
 		if ok {
 			file_str := file.(*backend.FileEntry).AbsPath
-			MP.GlobalMediaPlayer.PlayFile(file_str)
+			media_player.GlobalMediaPlayer.PlayFile(file_str)
 		} else {
 			err = errors.New(fmt.Sprintf("Could not play file: Invalid selection"))
 		}
 	default:
-		err = dl.CL.Input(event)
+		// swedish (others?) || (english)
+		if event.Ch == '§' || event.Ch == '~' {
+			err = dl.CdUp()
+			dl.CL.Clear()
+		} else {
+			err = dl.CL.Input(event)
+		}
 	}
 
 	dl.pl.UpdateFilter(&dl.current_dir.Contents, string(dl.CL.Cmd))
@@ -205,8 +202,9 @@ func (dl *DirectoryListing) Draw(is_focused bool) error {
 
 func (dl *DirectoryListing) Resize(width, height int) error {
 	dl.pl.width = width
-	dl.pl.height = height
+	dl.pl.height = height - 1
 	dl.CL.Length = width
+	dl.CL.Y = dl.pl.starty + dl.pl.height
 	return nil
 }
 
@@ -216,7 +214,7 @@ func (dl *DirectoryListing) GetPrintableListing() *PrintableListing {
 
 func (dl *DirectoryListing) CdHighlighted() error {
 	if dl.pl.highlighted_element == nil {
-		return errors.New("No entry is highlighted. Is this an empty folder? Helloooooo....")
+		return errors.New("No entry is highlighted.")
 	}
 	highlighted_entry := dl.pl.highlighted_element.Value.(*backend.FileEntry)
 	if !highlighted_entry.IsDir {
@@ -261,7 +259,7 @@ func (dl *DirectoryListing) NextDirectory() error {
 
 		return dl.ChangeDir(element.Value.(*backend.FileEntry))
 	}
-	return nil
+	return errors.New("No next directory")
 }
 
 func panic_perhaps(err error) {

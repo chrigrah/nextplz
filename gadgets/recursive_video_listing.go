@@ -5,15 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/chrigrah/nextplz/backend"
-	MP "github.com/chrigrah/nextplz/media_player"
+	"github.com/chrigrah/nextplz/media_player"
+	"github.com/nsf/termbox-go"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
-	//"github.com/chrigrah/nextplz/util"
-	"github.com/nsf/termbox-go"
-	"regexp"
 )
 
 var (
@@ -146,7 +145,7 @@ func (rl *RecursiveListing) Input(event termbox.Event) (err error) {
 		file, ok := rl.pl.GetSelected()
 		if ok {
 			file_str := file.(*backend.FileEntry).AbsPath
-			MP.GlobalMediaPlayer.PlayFile(file_str)
+			media_player.GlobalMediaPlayer.PlayFile(file_str)
 		} else {
 			err = errors.New(fmt.Sprintf("Could not play file: Invalid selection"))
 		}
@@ -190,6 +189,10 @@ func (rl *RecursiveListing) Draw(is_focused bool) error {
 }
 
 func (rl *RecursiveListing) Resize(width, height int) error {
+	rl.pl.width = width
+	rl.pl.height = height - 1
+	rl.CL.Length = width
+	rl.CL.Y = rl.pl.starty + rl.pl.height
 	return nil
 }
 

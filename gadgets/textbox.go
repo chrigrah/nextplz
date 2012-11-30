@@ -120,7 +120,6 @@ func (tb *TextBox) Draw(is_focused bool) error {
 	tb.draw_borders()
 	tb.fill()
 	tb.draw_question()
-	//	tb.draw_input()
 	tb.cl.Draw(is_focused)
 
 	return nil

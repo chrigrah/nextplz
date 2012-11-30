@@ -1,10 +1,9 @@
 package media_player
 
 import (
+	"flag"
 	"fmt"
 	"net"
-	//	"time"
-	"flag"
 	"os/exec"
 	"strings"
 )
@@ -20,10 +19,10 @@ type MediaPlayerInitInfo struct {
 
 var GlobalMediaPlayer MediaPlayer
 
-func InitMediaPlayerFlagParser() *MediaPlayerInitInfo {
+func InitMediaPlayerFlagParser(flagset *flag.FlagSet) *MediaPlayerInitInfo {
 	var info MediaPlayerInitInfo
-	flag.StringVar(&info.Executable, "exe", "", "The name of the media player executable (must be on system path)")
-	flag.StringVar(&info.Arguments, "args", "",
+	flagset.StringVar(&info.Executable, "exe", "", "The name of the media player executable (must be on system path)")
+	flagset.StringVar(&info.Arguments, "args", "",
 		"Arguments to be passed to the media player (space separates, no escaping I'm afraid)")
 	return &info
 }

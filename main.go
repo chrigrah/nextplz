@@ -3,10 +3,12 @@ package main
 import (
 	"container/list"
 	"flag"
+	"fmt"
 	"github.com/chrigrah/nextplz/backend"
 	"github.com/chrigrah/nextplz/gadgets"
-	MP "github.com/chrigrah/nextplz/media_player"
+	"github.com/chrigrah/nextplz/media_player"
 	"github.com/nsf/termbox-go"
+	"os"
 	"strings"
 )
 
@@ -30,13 +32,13 @@ func main() {
 	}
 	defer termbox.Close()
 
+	//termbox.SetInputMode(termbox.InputAlt)
 	termbox.Clear(termbox.ColorBlack, termbox.ColorBlack)
 
 	initialize_globals()
 
 	go feed_events()
 
-	sl.ShowUpdate("Here.")
 	update()
 
 	for {
@@ -44,11 +46,13 @@ func main() {
 		case event := <-events:
 			if event.Type == termbox.EventResize {
 				for drawable := focus_stack.Back(); drawable != nil; drawable = drawable.Prev() {
-					if err := drawable.Value.(gadgets.InputReceiver).Resize(event.Width, event.Height); err != nil {
+					if err := drawable.Value.(gadgets.InputReceiver).Resize(event.Width, event.Height-1); err != nil {
 						display_error(err)
 					}
 				}
-				sl.ShowUpdate("Got resize event")
+				sl.Y = event.Height - 1
+				sl.Length = event.Width
+				sl.ShowUpdate(fmt.Sprintf("Got resize event: (%d,%d)", event.Width, event.Height))
 				update()
 				continue
 			}
@@ -56,44 +60,46 @@ func main() {
 			if event.Type != termbox.EventKey {
 				continue
 			}
-			switch event.Key {
-			case termbox.KeyEsc:
-				handled := focus_stack.Front().Value.(gadgets.InputReceiver).HandleEscape()
-				if !handled {
-					err = focus_stack.Front().Value.(gadgets.InputReceiver).Deactivate()
-					focus_stack.Remove(focus_stack.Front())
+			if event.Ch == 0 {
+				switch event.Key {
+				case termbox.KeyEsc:
+					handled := focus_stack.Front().Value.(gadgets.InputReceiver).HandleEscape()
+					if !handled {
+						err = focus_stack.Front().Value.(gadgets.InputReceiver).Deactivate()
+						focus_stack.Remove(focus_stack.Front())
 
-					if focus_stack.Len() <= 0 {
-						return
+						if focus_stack.Len() <= 0 {
+							return
+						}
 					}
-				}
-			case termbox.KeyEnter:
-				status := focus_stack.Front().Value.(gadgets.InputReceiver).Finalize()
+				case termbox.KeyEnter:
+					status := focus_stack.Front().Value.(gadgets.InputReceiver).Finalize()
 
-				if status.Done {
-					err = focus_stack.Front().Value.(gadgets.InputReceiver).Deactivate()
-					focus_stack.Remove(focus_stack.Front())
-				}
-				if status.Chain != nil {
-					err = status.Chain
-				}
-			case termbox.KeyF1:
-				if !gadgets.TextBoxIsOpen {
-					tb, err := gadgets.CreateTextBox("Change directory:", width, height)
-					if err != nil {
-						display_error(err)
-						continue
+					if status.Done {
+						err = focus_stack.Front().Value.(gadgets.InputReceiver).Deactivate()
+						focus_stack.Remove(focus_stack.Front())
 					}
-					tb.X = width/2 - tb.Width/2
-					tb.Y = height/2 - tb.Height/2
-					tb.FinalizeCallback = func(dir string) error { return dl.ChangeDirectory(dir) }
-					focus_stack.PushFront(tb)
+					if status.Chain != nil {
+						err = status.Chain
+					}
+				case termbox.KeyF3:
+					if !gadgets.TextBoxIsOpen {
+						tb, err := gadgets.CreateTextBox("Change directory:", width, height)
+						if err != nil {
+							display_error(err)
+							continue
+						}
+						tb.X = width/2 - tb.Width/2
+						tb.Y = height/2 - tb.Height/2
+						tb.FinalizeCallback = func(dir string) error { return dl.ChangeDirectory(dir) }
+						focus_stack.PushFront(tb)
+					}
+				case termbox.KeyF4:
+					rl := gadgets.InitRecursiveFromDirectory(dl, update_chan)
+					focus_stack.PushFront(rl)
+				case termbox.KeyCtrlSpace:
+					err = media_player.GlobalMediaPlayer.(*media_player.VLC).Pause()
 				}
-			case termbox.KeyF4:
-				rl := gadgets.InitRecursiveFromDirectory(dl, update_chan)
-				focus_stack.PushFront(rl)
-			case termbox.KeyCtrlSpace:
-				err = MP.GlobalMediaPlayer.(*MP.VLC).Pause()
 			}
 
 			err = focus_stack.Front().Value.(gadgets.InputReceiver).Input(event)
@@ -114,24 +120,26 @@ func feed_events() {
 }
 
 func initialize_globals() {
-	mp_info := MP.InitMediaPlayerFlagParser()
-	flag.StringVar(&media_extensions, "extensions", ".avi,.mkv,.mpg,.wmv",
-		"Comma separated list of file extensions that should be considered video files.")
-	flag.IntVar(&gadgets.LS_COL_WIDTH, "cw", 50, "Column width for directory listing.")
-	flag.BoolVar(&backend.FilterSubs, "filter-subs", true,
+	flagset := flag.NewFlagSet("nextplz", flag.ExitOnError)
+	mp_info := media_player.InitMediaPlayerFlagParser(flagset)
+	flagset.StringVar(&media_extensions, "extensions", ".avi,.mkv,.mpg,.wmv",
+		"Comma separated list of file extensions that should be considered video files.\n")
+	flagset.IntVar(&gadgets.LS_COL_WIDTH, "cw", 50, "Column width for directory listing.\n")
+	flagset.BoolVar(&backend.FilterSubs, "filter-subs", true,
 		"If set to true, rar files matching [.-]subs[.-] will be filtered out from recursive listings.")
-	flag.BoolVar(&backend.FilterSamples, "filter-samples", true,
+	flagset.BoolVar(&backend.FilterSamples, "filter-samples", true,
 		"If set to true, video files matching [.-]sample[.-] will be filtered out from recursive listings.")
-	flag.BoolVar(&gadgets.EnableFoldersForRars, "rar-folders", true,
+	flagset.BoolVar(&gadgets.EnableFoldersForRars, "rar-folders", true,
 		"If set to true rar files will also be filtered by folder in recursive listings")
-	flag.Parse()
+
+	flagset.Parse(os.Args[1:])
 
 	width, height = termbox.Size()
 	dl = gadgets.NewListing(0, 0, width, height-1, update_chan)
 
 	backend.VideoExtensions = strings.Split(media_extensions, ",")
 	var err error
-	MP.GlobalMediaPlayer, err = mp_info.CreateMediaPlayer()
+	media_player.GlobalMediaPlayer, err = mp_info.CreateMediaPlayer()
 	if err != nil {
 		panic(err)
 	}
@@ -139,12 +147,14 @@ func initialize_globals() {
 	sl.X = 0
 	sl.Y = height - 1
 	sl.Length = width
+	sl.ShowUpdate("") // colors the statusline so that it's not just white
 
 	focus_stack = list.New()
 	focus_stack.PushFront(dl)
 }
 
 func update() {
+	termbox.Clear(termbox.ColorBlack, termbox.ColorBlack)
 	for drawable := focus_stack.Back(); drawable != nil; drawable = drawable.Prev() {
 		is_focused := drawable.Prev() == nil
 		err := drawable.Value.(gadgets.InputReceiver).Draw(is_focused)

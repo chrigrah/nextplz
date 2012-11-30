@@ -47,6 +47,8 @@ func (cl *CommandLine) Input(event termbox.Event) error {
 		cl.step_cursor_right()
 	} else {
 		switch event.Key {
+		case termbox.KeyBackspace2:
+			fallthrough
 		case termbox.KeyBackspace:
 			if cl.cursor_at > 0 {
 				copy(cl.Cmd[cl.cursor_at-1:], cl.Cmd[cl.cursor_at:])
