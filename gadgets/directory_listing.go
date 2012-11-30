@@ -203,6 +203,13 @@ func (dl *DirectoryListing) Draw(is_focused bool) error {
 	return nil
 }
 
+func (dl *DirectoryListing) Resize(width, height int) error {
+	dl.pl.width = width
+	dl.pl.height = height
+	dl.CL.Length = width
+	return nil
+}
+
 func (dl *DirectoryListing) GetPrintableListing() *PrintableListing {
 	return &dl.pl
 }

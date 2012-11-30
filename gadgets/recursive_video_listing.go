@@ -189,6 +189,10 @@ func (rl *RecursiveListing) Draw(is_focused bool) error {
 	return nil
 }
 
+func (rl *RecursiveListing) Resize(width, height int) error {
+	return nil
+}
+
 func (rl *RecursiveListing) SetFinalizeCallback(callback func(string) error) {
 	// Doesn't finalize
 }

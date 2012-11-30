@@ -17,14 +17,12 @@ type CommandLine struct {
 }
 
 func (cl *CommandLine) Draw(draw_cursor bool) {
-	max_length := cl.Length - len(cl.Prefix) - 1
-	cmd_length := util.Min(len(cl.Cmd), max_length)
-
-	var cmd string = string(cl.Cmd[:cmd_length])
+	cmd_length := cl.get_visible_length()
+	cmd := string(cl.Cmd[:cmd_length])
 	util.WriteString(cl.X, cl.Y, cl.Length, cl.FG, cl.BG, cl.Prefix)
 	util.WriteString_FillWithChar(cl.X+len(cl.Prefix), cl.Y, cl.Length, cl.FG, cl.BG, cmd, cl.FillRune)
 	if draw_cursor {
-		termbox.SetCursor(cl.X+len(cl.Prefix)+cl.cursor_at, cl.Y)
+		termbox.SetCursor(cl.X+len(cl.Prefix)+util.Min(cl.cursor_at, cmd_length), cl.Y)
 	}
 }
 
@@ -46,16 +44,14 @@ func (cl *CommandLine) append(character rune) {
 func (cl *CommandLine) Input(event termbox.Event) error {
 	if event.Type == termbox.EventKey && event.Ch != 0 {
 		cl.append(event.Ch)
-		cl.cursor_at++
+		cl.step_cursor_right()
 	} else {
 		switch event.Key {
 		case termbox.KeyBackspace:
 			if cl.cursor_at > 0 {
 				copy(cl.Cmd[cl.cursor_at-1:], cl.Cmd[cl.cursor_at:])
 				cl.Cmd = cl.Cmd[:len(cl.Cmd)-1]
-				if cl.cursor_at > 0 {
-					cl.cursor_at--
-				}
+				cl.step_cursor_left()
 			}
 		case termbox.KeyDelete:
 			if len(cl.Cmd) > cl.cursor_at {
@@ -64,15 +60,11 @@ func (cl *CommandLine) Input(event termbox.Event) error {
 			}
 		case termbox.KeySpace:
 			cl.append(' ')
-			cl.cursor_at++
+			cl.step_cursor_right()
 		case termbox.KeyArrowLeft:
-			if cl.cursor_at > 0 {
-				cl.cursor_at--
-			}
+			cl.step_cursor_left()
 		case termbox.KeyArrowRight:
-			if cl.cursor_at < len(cl.Cmd) {
-				cl.cursor_at++
-			}
+			cl.step_cursor_right()
 		case termbox.KeyHome:
 			cl.cursor_at = 0
 		case termbox.KeyEnd:
@@ -85,4 +77,21 @@ func (cl *CommandLine) Input(event termbox.Event) error {
 func (cl *CommandLine) Clear() {
 	cl.Cmd = cl.Cmd[0:0]
 	cl.cursor_at = 0
+}
+
+func (cl *CommandLine) get_visible_length() int {
+	max_length := cl.Length - len(cl.Prefix) - 1
+	return util.Min(len(cl.Cmd), max_length)
+}
+
+func (cl *CommandLine) step_cursor_right() {
+	if cl.cursor_at < len(cl.Cmd) {
+		cl.cursor_at++
+	}
+}
+
+func (cl *CommandLine) step_cursor_left() {
+	if cl.cursor_at > 0 {
+		cl.cursor_at--
+	}
 }

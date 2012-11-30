@@ -18,7 +18,7 @@ type InputReceiver interface {
 	HandleEscape() bool
 
 	Draw(is_focused bool) error
-	//Insert() error
+	Resize(width, height int) error
 	Deactivate() error
 
 	SetFinalizeCallback(func(string) error)
@@ -123,6 +123,10 @@ func (tb *TextBox) Draw(is_focused bool) error {
 	//	tb.draw_input()
 	tb.cl.Draw(is_focused)
 
+	return nil
+}
+
+func (tb *TextBox) Resize(width, height int) error {
 	return nil
 }
 

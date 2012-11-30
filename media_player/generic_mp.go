@@ -11,7 +11,6 @@ import (
 
 type MediaPlayer interface {
 	PlayFile(file string) error
-	Disconnect()
 }
 
 type MediaPlayerInitInfo struct {
@@ -62,6 +61,7 @@ func CreateDefaultMediaPlayer() (MediaPlayer, error) {
 	return MediaPlayer(&VLC{executable}), nil
 }
 
+////////////////////////////////////////////////////////////////////////
 type CustomMediaPlayer struct {
 	Executable string
 	Args       []string
@@ -75,9 +75,6 @@ func (mp *CustomMediaPlayer) PlayFile(file string) error {
 
 	command.Start()
 	return nil
-}
-
-func (mp *CustomMediaPlayer) Disconnect() {
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -111,9 +108,6 @@ func (vlc *VLC) PlayFile(file string) error {
 	command.Start()
 
 	return nil
-}
-
-func (vlc *VLC) Disconnect() {
 }
 
 func (vlc *VLC) Pause() error {

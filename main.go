@@ -33,15 +33,26 @@ func main() {
 	termbox.Clear(termbox.ColorBlack, termbox.ColorBlack)
 
 	initialize_globals()
-	defer MP.GlobalMediaPlayer.Disconnect()
 
 	go feed_events()
 
+	sl.ShowUpdate("Here.")
 	update()
 
 	for {
 		select {
 		case event := <-events:
+			if event.Type == termbox.EventResize {
+				for drawable := focus_stack.Back(); drawable != nil; drawable = drawable.Prev() {
+					if err := drawable.Value.(gadgets.InputReceiver).Resize(event.Width, event.Height); err != nil {
+						display_error(err)
+					}
+				}
+				sl.ShowUpdate("Got resize event")
+				update()
+				continue
+			}
+
 			if event.Type != termbox.EventKey {
 				continue
 			}
@@ -134,14 +145,12 @@ func initialize_globals() {
 }
 
 func update() {
-	//termbox.Clear(termbox.ColorBlack, termbox.ColorBlack)
-
 	for drawable := focus_stack.Back(); drawable != nil; drawable = drawable.Prev() {
 		is_focused := drawable.Prev() == nil
 		err := drawable.Value.(gadgets.InputReceiver).Draw(is_focused)
 		display_error(err)
 	}
-
+	sl.Draw()
 	termbox.Flush()
 }
 
