@@ -22,8 +22,7 @@ var GlobalMediaPlayer MediaPlayer
 func InitMediaPlayerFlagParser(flagset *flag.FlagSet) *MediaPlayerInitInfo {
 	var info MediaPlayerInitInfo
 	flagset.StringVar(&info.Executable, "exe", "", "The name of the media player executable (must be on system path)")
-	flagset.StringVar(&info.Arguments, "args", "",
-		"Arguments to be passed to the media player (space separates, no escaping I'm afraid)")
+	flagset.StringVar(&info.Arguments, "args", "", "Arguments to be passed to the media player")
 	return &info
 }
 

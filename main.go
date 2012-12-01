@@ -35,7 +35,10 @@ func main() {
 	//termbox.SetInputMode(termbox.InputAlt)
 	termbox.Clear(termbox.ColorBlack, termbox.ColorBlack)
 
-	initialize_globals()
+	success := initialize_globals()
+	if !success {
+		return
+	}
 
 	go feed_events()
 
@@ -119,8 +122,8 @@ func feed_events() {
 	}
 }
 
-func initialize_globals() {
-	flagset := flag.NewFlagSet("nextplz", flag.ExitOnError)
+func initialize_globals() (success bool) {
+	flagset := flag.NewFlagSet("nextplz", flag.ContinueOnError)
 	mp_info := media_player.InitMediaPlayerFlagParser(flagset)
 	flagset.StringVar(&media_extensions, "extensions", ".avi,.mkv,.mpg,.wmv",
 		"Comma separated list of file extensions that should be considered video files.\n")
@@ -132,7 +135,12 @@ func initialize_globals() {
 	flagset.BoolVar(&gadgets.EnableFoldersForRars, "rar-folders", true,
 		"If set to true rar files will also be filtered by folder in recursive listings")
 
-	flagset.Parse(os.Args[1:])
+	flagerr := flagset.Parse(os.Args[1:])
+	if flagerr == flag.ErrHelp {
+		return false
+	} else if flagerr != nil {
+		display_error(flagerr)
+	}
 
 	width, height = termbox.Size()
 	dl = gadgets.NewListing(0, 0, width, height-1, update_chan)
@@ -151,6 +159,8 @@ func initialize_globals() {
 
 	focus_stack = list.New()
 	focus_stack.PushFront(dl)
+
+	return true
 }
 
 func update() {

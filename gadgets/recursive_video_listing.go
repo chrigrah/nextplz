@@ -125,21 +125,17 @@ func rl_fe_get_top_folder(entry *backend.FileEntry) (top_folder string) {
 
 func (rl *RecursiveListing) Input(event termbox.Event) (err error) {
 	switch event.Key {
-	case termbox.KeyCtrlH:
-		fallthrough
-	case termbox.KeyArrowLeft:
+	case termbox.KeyCtrlY:
 		rl.pl.MoveCursorLeft()
-	case termbox.KeyCtrlJ:
+	case termbox.KeyCtrlU:
 		fallthrough
 	case termbox.KeyArrowDown:
 		rl.pl.MoveCursorDown()
-	case termbox.KeyCtrlK:
+	case termbox.KeyCtrlI:
 		fallthrough
 	case termbox.KeyArrowUp:
 		rl.pl.MoveCursorUp()
-	case termbox.KeyCtrlL:
-		fallthrough
-	case termbox.KeyArrowRight:
+	case termbox.KeyCtrlO:
 		rl.pl.MoveCursorRight()
 	case termbox.KeyCtrlB:
 		file, ok := rl.pl.GetSelected()
