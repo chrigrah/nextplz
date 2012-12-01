@@ -45,12 +45,12 @@ For some reason VLC will not queue files while it has a video paused, so nextplz
 
 Usage
 =====
-  -args="": Arguments to be passed to the media player
+  -args="": Arguments to be passed to the media player  
   -cw=50: Column width for directory listing.
 
-  -exe="": The name of the media player executable (must be on system path)
+  -exe="": The name of the media player executable (must be on system path)  
   -extensions=".avi,.mkv,.mpg,.wmv": Comma separated list of file extensions that should be considered video files.
 
-  -filter-samples=true: If set to true, video files matching [.-]sample[.-] will be filtered out from recursive listings.
-  -filter-subs=true: If set to true, rar files matching [.-]subs[.-] will be filtered out from recursive listings.
-  -rar-folders=true: If set to true rar files will also be filtered by folder in recursive listings
+  -filter-samples=true: If set to true, video files matching [.-]sample[.-] will be filtered out from recursive listings.  
+  -filter-subs=true: If set to true, rar files matching [.-]subs[.-] will be filtered out from recursive listings.  
+  -rar-folders=true: If set to true rar files will also be filtered by folder in recursive listings  
